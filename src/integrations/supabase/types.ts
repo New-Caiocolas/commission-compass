@@ -14,7 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      apuracao_frete_comissao: {
+        Row: {
+          created_at: string
+          desconto_1: number | null
+          dt_pag: string | null
+          id: string
+          nome_cliente: string | null
+          nome_rep: string | null
+          num_nf: string | null
+          prc_nf: number | null
+          repres_vend: string | null
+          vlr_acresc: number | null
+          vlr_ajustada: number | null
+          vlr_comissao_nf: number | null
+          vlr_desc: number | null
+          vlr_exced: number | null
+          vlr_frete_cte: number | null
+          vlr_frete_desp_acessoria: number | null
+          vlr_negativa: number | null
+        }
+        Insert: {
+          created_at?: string
+          desconto_1?: number | null
+          dt_pag?: string | null
+          id?: string
+          nome_cliente?: string | null
+          nome_rep?: string | null
+          num_nf?: string | null
+          prc_nf?: number | null
+          repres_vend?: string | null
+          vlr_acresc?: number | null
+          vlr_ajustada?: number | null
+          vlr_comissao_nf?: number | null
+          vlr_desc?: number | null
+          vlr_exced?: number | null
+          vlr_frete_cte?: number | null
+          vlr_frete_desp_acessoria?: number | null
+          vlr_negativa?: number | null
+        }
+        Update: {
+          created_at?: string
+          desconto_1?: number | null
+          dt_pag?: string | null
+          id?: string
+          nome_cliente?: string | null
+          nome_rep?: string | null
+          num_nf?: string | null
+          prc_nf?: number | null
+          repres_vend?: string | null
+          vlr_acresc?: number | null
+          vlr_ajustada?: number | null
+          vlr_comissao_nf?: number | null
+          vlr_desc?: number | null
+          vlr_exced?: number | null
+          vlr_frete_cte?: number | null
+          vlr_frete_desp_acessoria?: number | null
+          vlr_negativa?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
