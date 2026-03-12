@@ -11,7 +11,7 @@ const FiltrosContext = createContext<FiltrosState | undefined>(undefined);
 
 export function FiltrosProvider({ children }: { children: ReactNode }) {
   const currentYear = new Date().getFullYear();
-  const [anos, setAnos] = useState<number[]>([currentYear]);
+  const [anos, setAnos] = useState<number[]>([]);
   const [meses, setMeses] = useState<number[]>([]);
 
   return (
