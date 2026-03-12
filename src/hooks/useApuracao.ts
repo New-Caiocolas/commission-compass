@@ -10,11 +10,11 @@ export function useApuracao() {
   const query = useQuery({
     queryKey: ['apuracao', anos, meses],
     queryFn: async () => {
-      let q = supabase.from('apuracao_frete_comissao').select('*');
+      const { data, error } = await supabase
+        .from('comissoes')
+        .select('*')
+        .order('dt_pag', { ascending: false });
 
-      // We'll fetch all and filter client-side for year/month since Supabase
-      // doesn't have extract() in the JS client easily
-      const { data, error } = await q.order('dt_pag', { ascending: false });
       if (error) throw error;
       return (data || []) as ApuracaoRecord[];
     },

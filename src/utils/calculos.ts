@@ -1,7 +1,7 @@
 export interface ApuracaoRecord {
-  id: string;
+  id: number;                    // bigint → number
   num_nf: string;
-  repres_vend: string;
+  repres_vend: number;           // integer → number
   nome_rep: string;
   nome_cliente: string;
   dt_pag: string;
@@ -10,12 +10,12 @@ export interface ApuracaoRecord {
   vlr_acresc: number;
   vlr_negativa: number;
   vlr_ajustada: number;
-  vlr_comissao_nf: number;
+  vlr_base_comis: number;        // era vlr_comissao_nf
   vlr_exced: number;
-  vlr_frete_cte: number;
-  vlr_frete_desp_acessoria: number;
+  vlr_frete: number;             // era vlr_frete_cte
+  frete_na_nf: number;           // era vlr_frete_desp_acessoria
   desconto_1: number;
-  created_at: string;
+  criado_em: string;             // era created_at
 }
 
 export interface CalculosResult {
@@ -45,8 +45,8 @@ export function calcularMedidas(records: ApuracaoRecord[]): CalculosResult {
   const vlrComissaoNF = vlrComissaoAjustada - vlrNegativo;
   const percComissaoNF = vlrNF !== 0 ? vlrComissaoNF / vlrNF : 0;
   const vlrExcedenteNF = records.reduce((s, r) => s + (r.vlr_exced || 0), 0);
-  const vlrFreteCTE = records.reduce((s, r) => s + (r.vlr_frete_cte || 0), 0);
-  const vlrFreteDespAcessoria = records.reduce((s, r) => s + (r.vlr_frete_desp_acessoria || 0), 0);
+  const vlrFreteCTE = records.reduce((s, r) => s + (r.vlr_frete || 0), 0);           // vlr_frete
+  const vlrFreteDespAcessoria = records.reduce((s, r) => s + (r.frete_na_nf || 0), 0); // frete_na_nf
   const vlrDespTotalFrete = Math.max(0, vlrFreteCTE - vlrFreteDespAcessoria);
   const vlrExcedenteFlex = vlrExcedenteNF - vlrDespTotalFrete;
   const percExcedenteFlex = vlrNF !== 0 ? vlrExcedenteFlex / vlrNF : 0;

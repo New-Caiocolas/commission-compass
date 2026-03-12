@@ -14,63 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
-      apuracao_frete_comissao: {
+      comissoes: {
         Row: {
-          created_at: string
-          desconto_1: number | null
-          dt_pag: string | null
-          id: string
-          nome_cliente: string | null
-          nome_rep: string | null
+          id: number
           num_nf: string | null
+          dt_pag: string | null
+          repres_vend: number | null
+          nome_rep: string | null
+          nome_cliente: string | null
           prc_nf: number | null
-          repres_vend: string | null
-          vlr_acresc: number | null
-          vlr_ajustada: number | null
-          vlr_comissao_nf: number | null
           vlr_desc: number | null
-          vlr_exced: number | null
-          vlr_frete_cte: number | null
-          vlr_frete_desp_acessoria: number | null
+          vlr_acresc: number | null
           vlr_negativa: number | null
+          vlr_ajustada: number | null
+          vlr_base_comis: number | null
+          vlr_exced: number | null
+          vlr_frete: number | null
+          frete_na_nf: number | null
+          desconto_1: number | null
+          criado_em: string | null
         }
         Insert: {
-          created_at?: string
-          desconto_1?: number | null
-          dt_pag?: string | null
-          id?: string
-          nome_cliente?: string | null
-          nome_rep?: string | null
+          id?: number
           num_nf?: string | null
+          dt_pag?: string | null
+          repres_vend?: number | null
+          nome_rep?: string | null
+          nome_cliente?: string | null
           prc_nf?: number | null
-          repres_vend?: string | null
-          vlr_acresc?: number | null
-          vlr_ajustada?: number | null
-          vlr_comissao_nf?: number | null
           vlr_desc?: number | null
-          vlr_exced?: number | null
-          vlr_frete_cte?: number | null
-          vlr_frete_desp_acessoria?: number | null
+          vlr_acresc?: number | null
           vlr_negativa?: number | null
+          vlr_ajustada?: number | null
+          vlr_base_comis?: number | null
+          vlr_exced?: number | null
+          vlr_frete?: number | null
+          frete_na_nf?: number | null
+          desconto_1?: number | null
+          criado_em?: string | null
         }
         Update: {
-          created_at?: string
-          desconto_1?: number | null
-          dt_pag?: string | null
-          id?: string
-          nome_cliente?: string | null
-          nome_rep?: string | null
+          id?: number
           num_nf?: string | null
+          dt_pag?: string | null
+          repres_vend?: number | null
+          nome_rep?: string | null
+          nome_cliente?: string | null
           prc_nf?: number | null
-          repres_vend?: string | null
-          vlr_acresc?: number | null
-          vlr_ajustada?: number | null
-          vlr_comissao_nf?: number | null
           vlr_desc?: number | null
-          vlr_exced?: number | null
-          vlr_frete_cte?: number | null
-          vlr_frete_desp_acessoria?: number | null
+          vlr_acresc?: number | null
           vlr_negativa?: number | null
+          vlr_ajustada?: number | null
+          vlr_base_comis?: number | null
+          vlr_exced?: number | null
+          vlr_frete?: number | null
+          frete_na_nf?: number | null
+          desconto_1?: number | null
+          criado_em?: string | null
         }
         Relationships: []
       }
