@@ -1,7 +1,8 @@
+// Registro individual da tabela comissoes (usado em Notas.tsx)
 export interface ApuracaoRecord {
-  id: number;                    // bigint → number
+  id: number;
   num_nf: string;
-  repres_vend: number;           // integer → number
+  repres_vend: number;
   nome_rep: string;
   nome_cliente: string;
   dt_pag: string;
@@ -10,12 +11,24 @@ export interface ApuracaoRecord {
   vlr_acresc: number;
   vlr_negativa: number;
   vlr_ajustada: number;
-  vlr_base_comis: number;        // era vlr_comissao_nf
+  vlr_base_comis: number;
   vlr_exced: number;
-  vlr_frete: number;             // era vlr_frete_cte
-  frete_na_nf: number;           // era vlr_frete_desp_acessoria
+  vlr_frete: number;
+  frete_na_nf: number;
   desconto_1: number;
-  criado_em: string;             // era created_at
+  criado_em: string;
+}
+
+// Registro já agregado vindo da RPC get_apuracao
+export interface ApuracaoAgregada {
+  nome_rep: string;
+  vlr_nf: number;
+  vlr_comissao_ajustada: number;
+  vlr_negativo: number;
+  vlr_excedente_nf: number;
+  vlr_frete_cte: number;
+  vlr_frete_desp: number;
+  desconto_1: number;
 }
 
 export interface CalculosResult {
@@ -38,15 +51,15 @@ export interface CalculosResult {
   somaDesconto1: number;
 }
 
-export function calcularMedidas(records: ApuracaoRecord[]): CalculosResult {
-  const vlrNF = records.reduce((s, r) => s + (r.prc_nf || 0), 0);
-  const vlrComissaoAjustada = records.reduce((s, r) => s + (r.vlr_ajustada || 0), 0);
-  const vlrNegativo = records.reduce((s, r) => s + (r.vlr_negativa || 0), 0);
+export function calcularMedidas(rows: ApuracaoAgregada[]): CalculosResult {
+  const vlrNF = rows.reduce((s, r) => s + (Number(r.vlr_nf) || 0), 0);
+  const vlrComissaoAjustada = rows.reduce((s, r) => s + (Number(r.vlr_comissao_ajustada) || 0), 0);
+  const vlrNegativo = rows.reduce((s, r) => s + (Number(r.vlr_negativo) || 0), 0);
   const vlrComissaoNF = vlrComissaoAjustada - vlrNegativo;
   const percComissaoNF = vlrNF !== 0 ? vlrComissaoNF / vlrNF : 0;
-  const vlrExcedenteNF = records.reduce((s, r) => s + (r.vlr_exced || 0), 0);
-  const vlrFreteCTE = records.reduce((s, r) => s + (r.vlr_frete || 0), 0);           // vlr_frete
-  const vlrFreteDespAcessoria = records.reduce((s, r) => s + (r.frete_na_nf || 0), 0); // frete_na_nf
+  const vlrExcedenteNF = rows.reduce((s, r) => s + (Number(r.vlr_excedente_nf) || 0), 0);
+  const vlrFreteCTE = rows.reduce((s, r) => s + (Number(r.vlr_frete_cte) || 0), 0);
+  const vlrFreteDespAcessoria = rows.reduce((s, r) => s + (Number(r.vlr_frete_desp) || 0), 0);
   const vlrDespTotalFrete = Math.max(0, vlrFreteCTE - vlrFreteDespAcessoria);
   const vlrExcedenteFlex = vlrExcedenteNF - vlrDespTotalFrete;
   const percExcedenteFlex = vlrNF !== 0 ? vlrExcedenteFlex / vlrNF : 0;
@@ -58,7 +71,7 @@ export function calcularMedidas(records: ApuracaoRecord[]): CalculosResult {
   const vlrSaldoFlex = vlrExcedenteFlex - vlrAproveitamentoFlex;
   const percComissaoFinal = percComissaoNF + percAproveitamentoFlex;
   const vlrComissaoFinal = percComissaoFinal * vlrNF;
-  const somaDesconto1 = records.reduce((s, r) => s + (r.desconto_1 || 0), 0);
+  const somaDesconto1 = rows.reduce((s, r) => s + (Number(r.desconto_1) || 0), 0);
 
   return {
     vlrNF, vlrComissaoAjustada, vlrNegativo, vlrComissaoNF, percComissaoNF,
@@ -71,20 +84,16 @@ export function calcularMedidas(records: ApuracaoRecord[]): CalculosResult {
 
 export interface VendedorResumo {
   nomeRep: string;
-  registros: ApuracaoRecord[];
   calculos: CalculosResult;
 }
 
-export function agruparPorVendedor(records: ApuracaoRecord[]): VendedorResumo[] {
-  const map = new Map<string, ApuracaoRecord[]>();
-  for (const r of records) {
-    const key = r.nome_rep || 'Sem Representante';
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(r);
-  }
-  return Array.from(map.entries()).map(([nomeRep, registros]) => ({
-    nomeRep,
-    registros,
-    calculos: calcularMedidas(registros),
-  }));
+const EXCLUIR_REPRESENTANTES = ['FUNCIONARIO', 'Padrão Empresa'];
+
+export function agruparPorVendedor(rows: ApuracaoAgregada[]): VendedorResumo[] {
+  return rows
+    .filter(r => r.nome_rep && !EXCLUIR_REPRESENTANTES.includes(r.nome_rep))
+    .map(r => ({
+      nomeRep: r.nome_rep,
+      calculos: calcularMedidas([r]), // cada vendedor já vem agregado
+    }));
 }

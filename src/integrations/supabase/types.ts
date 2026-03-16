@@ -79,7 +79,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_anos_disponiveis: {
+        Args: Record<never, never>
+        Returns: { ano: number }[]
+      }
+      get_apuracao: {
+        Args: { anos_filtro: number[] }
+        Returns: {
+          nome_rep: string
+          vlr_nf: number
+          vlr_comissao_ajustada: number
+          vlr_negativo: number
+          vlr_excedente_nf: number
+          vlr_frete_cte: number
+          vlr_frete_desp: number
+          desconto_1: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
@@ -212,3 +228,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

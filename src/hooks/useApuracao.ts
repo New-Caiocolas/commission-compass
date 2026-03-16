@@ -2,55 +2,63 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useFiltros } from '@/contexts/FiltrosContext';
-import { ApuracaoRecord, calcularMedidas, agruparPorVendedor } from '@/utils/calculos';
+import { calcularMedidas, agruparPorVendedor } from '@/utils/calculos';
+
+interface ApuracaoRPCRow {
+  nome_rep: string;
+  vlr_nf: number;
+  vlr_comissao_ajustada: number;
+  vlr_negativo: number;
+  vlr_excedente_nf: number;
+  vlr_frete_cte: number;
+  vlr_frete_desp: number;
+  desconto_1: number;
+}
 
 export function useApuracao() {
   const { anos, meses } = useFiltros();
 
+  // Query anos disponíveis — independente do filtro
+  const queryAnos = useQuery({
+    queryKey: ['anos-disponiveis'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_anos_disponiveis');
+      if (error) throw error;
+      return (data as { ano: number }[]).map(r => r.ano);
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // Query principal — agrupada por vendedor direto no banco
   const query = useQuery({
     queryKey: ['apuracao', anos, meses],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('comissoes')
-        .select('*')
-        .order('dt_pag', { ascending: false });
-
+      const { data, error } = await supabase.rpc('get_apuracao', {
+        anos_filtro: anos,
+      });
       if (error) throw error;
-      return (data || []) as ApuracaoRecord[];
+      return (data as ApuracaoRPCRow[]) || [];
     },
+    enabled: anos.length > 0,
   });
 
-  const dadosFiltrados = useMemo(() => {
+  // Calcular medidas para cada vendedor
+  const porVendedor = useMemo(() => {
     if (!query.data) return [];
-    return query.data.filter(r => {
-      if (!r.dt_pag) return false;
-      const d = new Date(r.dt_pag + 'T00:00:00');
-      const year = d.getFullYear();
-      const month = d.getMonth() + 1;
-      if (anos.length > 0 && !anos.includes(year)) return false;
-      if (meses.length > 0 && !meses.includes(month)) return false;
-      return true;
-    });
-  }, [query.data, anos, meses]);
-
-  const anosDisponiveis = useMemo(() => {
-    if (!query.data) return [];
-    const set = new Set<number>();
-    query.data.forEach(r => {
-      if (r.dt_pag) set.add(new Date(r.dt_pag + 'T00:00:00').getFullYear());
-    });
-    return Array.from(set).sort();
+    return agruparPorVendedor(query.data);
   }, [query.data]);
 
-  const totais = useMemo(() => calcularMedidas(dadosFiltrados), [dadosFiltrados]);
-  const porVendedor = useMemo(() => agruparPorVendedor(dadosFiltrados), [dadosFiltrados]);
+  // Totais gerais
+  const totais = useMemo(() => {
+    if (!query.data) return calcularMedidas([]);
+    return calcularMedidas(query.data);
+  }, [query.data]);
 
   return {
-    dados: dadosFiltrados,
-    todosOsDados: query.data || [],
+    dados: query.data || [],
     totais,
     porVendedor,
-    anosDisponiveis,
+    anosDisponiveis: queryAnos.data || [],
     isLoading: query.isLoading,
     error: query.error,
   };
