@@ -2,9 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useFiltros } from '@/contexts/FiltrosContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { calcularMedidas, agruparPorVendedor } from '@/utils/calculos';
 
 interface ApuracaoRPCRow {
+  repres_vend: number;
   nome_rep: string;
   vlr_nf: number;
   vlr_comissao_ajustada: number;
@@ -17,8 +19,9 @@ interface ApuracaoRPCRow {
 
 export function useApuracao() {
   const { anos, meses } = useFiltros();
+  const { profile } = useAuth();
 
-  // Query anos disponíveis — independente do filtro
+  // Query anos disponíveis
   const queryAnos = useQuery({
     queryKey: ['anos-disponiveis'],
     queryFn: async () => {
@@ -29,12 +32,13 @@ export function useApuracao() {
     staleTime: 1000 * 60 * 10,
   });
 
-  // Query principal — agrupada por vendedor direto no banco
+  // Query principal — agrupada por vendedor
   const query = useQuery({
     queryKey: ['apuracao', anos, meses],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_apuracao', {
         anos_filtro: anos,
+        meses_filtro: meses.length > 0 ? meses : undefined,
       });
       if (error) throw error;
       return (data as ApuracaoRPCRow[]) || [];
@@ -42,20 +46,25 @@ export function useApuracao() {
     enabled: anos.length > 0,
   });
 
-  // Calcular medidas para cada vendedor
-  const porVendedor = useMemo(() => {
+  // Filtra vendedores que o supervisor pode ver
+  const dadosFiltrados = useMemo(() => {
     if (!query.data) return [];
-    return agruparPorVendedor(query.data);
-  }, [query.data]);
+    if (profile?.cargo === 'supervisor' && profile.vendedores_ids?.length) {
+      return query.data.filter(r => profile.vendedores_ids!.includes(r.repres_vend));
+    }
+    return query.data;
+  }, [query.data, profile]);
 
-  // Totais gerais
+  const porVendedor = useMemo(() => {
+    return agruparPorVendedor(dadosFiltrados);
+  }, [dadosFiltrados]);
+
   const totais = useMemo(() => {
-    if (!query.data) return calcularMedidas([]);
-    return calcularMedidas(query.data);
-  }, [query.data]);
+    return calcularMedidas(dadosFiltrados);
+  }, [dadosFiltrados]);
 
   return {
-    dados: query.data || [],
+    dados: dadosFiltrados,
     totais,
     porVendedor,
     anosDisponiveis: queryAnos.data || [],

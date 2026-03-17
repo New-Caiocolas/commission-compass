@@ -21,6 +21,7 @@ export interface ApuracaoRecord {
 
 // Registro já agregado vindo da RPC get_apuracao
 export interface ApuracaoAgregada {
+  repres_vend: number;
   nome_rep: string;
   vlr_nf: number;
   vlr_comissao_ajustada: number;
@@ -83,6 +84,7 @@ export function calcularMedidas(rows: ApuracaoAgregada[]): CalculosResult {
 }
 
 export interface VendedorResumo {
+  represVend: number;
   nomeRep: string;
   calculos: CalculosResult;
 }
@@ -93,7 +95,8 @@ export function agruparPorVendedor(rows: ApuracaoAgregada[]): VendedorResumo[] {
   return rows
     .filter(r => r.nome_rep && !EXCLUIR_REPRESENTANTES.includes(r.nome_rep))
     .map(r => ({
+      represVend: r.repres_vend,
       nomeRep: r.nome_rep,
-      calculos: calcularMedidas([r]), // cada vendedor já vem agregado
+      calculos: calcularMedidas([r]),
     }));
 }

@@ -1,34 +1,99 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { FiltrosProvider } from "@/contexts/FiltrosContext";
-import { AppLayout } from "@/components/layout/AppLayout";
-import Dashboard from "./pages/Dashboard";
-import Vendedor from "./pages/Vendedor";
-import Notas from "./pages/Notas";
-import NotFound from "./pages/NotFound";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import { Toaster as Sonner } from '@/components/ui/sonner';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { FiltrosProvider } from '@/contexts/FiltrosContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AppLayout } from '@/components/layout/AppLayout';
+import Dashboard from './pages/Dashboard';
+import Vendedor from './pages/Vendedor';
+import Notas from './pages/Notas';
+import Admin from './pages/Admin';
+import Login from './pages/Login';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const queryClient = new QueryClient();
+
+function AppRoutes() {
+  const { session, profile, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="space-y-3 w-64">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </div>
+    );
+  }
+
+  // Não logado → login
+  if (!session) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  // Vendedor → só a própria página
+  if (profile?.cargo === 'vendedor') {
+    if (profile.repres_vend != null) {
+      const dest = `/vendedor/${profile.repres_vend}`;
+      return (
+        <Routes>
+          <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
+          <Route path="*" element={<Navigate to={dest} replace />} />
+        </Routes>
+      );
+    }
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground text-sm">
+        Seu perfil não está vinculado a um representante. Contate o administrador.
+      </div>
+    );
+  }
+
+  // Supervisor → dashboard (filtrado), vendedor e notas
+  if (profile?.cargo === 'supervisor') {
+    return (
+      <Routes>
+        <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+        <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
+        <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
+
+  // Admin → acesso total
+  return (
+    <Routes>
+      <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+      <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
+      <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
+      <Route path="/admin" element={<AppLayout><Admin /></AppLayout>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <FiltrosProvider>
-        <BrowserRouter>
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/vendedor/:nome" element={<Vendedor />} />
-              <Route path="/notas" element={<Notas />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppLayout>
-        </BrowserRouter>
-      </FiltrosProvider>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AuthProvider>
+          <FiltrosProvider>
+            <AppRoutes />
+          </FiltrosProvider>
+        </AuthProvider>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

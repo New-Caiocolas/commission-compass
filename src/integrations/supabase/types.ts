@@ -84,8 +84,9 @@ export type Database = {
         Returns: { ano: number }[]
       }
       get_apuracao: {
-        Args: { anos_filtro: number[] }
+        Args: { anos_filtro: number[]; meses_filtro?: number[] }
         Returns: {
+          repres_vend: number
           nome_rep: string
           vlr_nf: number
           vlr_comissao_ajustada: number

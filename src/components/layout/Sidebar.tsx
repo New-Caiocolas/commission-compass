@@ -1,12 +1,17 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, FileText, Settings } from 'lucide-react';
-
-const links = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/notas', label: 'Detalhes de NFs', icon: FileText },
-];
+import { LayoutDashboard, FileText, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function Sidebar() {
+  const { profile } = useAuth();
+  const cargo = profile?.cargo;
+
+  const links = [
+    cargo !== 'vendedor' && { to: '/',      label: 'Dashboard',     icon: LayoutDashboard },
+    cargo !== 'vendedor' && { to: '/notas', label: 'Detalhes de NFs', icon: FileText },
+    cargo === 'administrador' && { to: '/admin', label: 'Usuários', icon: ShieldCheck },
+  ].filter(Boolean) as { to: string; label: string; icon: React.ElementType }[];
+
   return (
     <aside className="w-56 bg-sidebar border-r flex flex-col shrink-0">
       <nav className="flex-1 py-4 space-y-1 px-3">
@@ -14,6 +19,7 @@ export function Sidebar() {
           <NavLink
             key={to}
             to={to}
+            end={to === '/'}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 isActive

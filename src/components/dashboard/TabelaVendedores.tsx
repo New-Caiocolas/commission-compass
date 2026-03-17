@@ -27,8 +27,8 @@ export function TabelaVendedores({ vendedores, totais }: Props) {
           <tbody>
             {vendedores.map((v, i) => (
               <tr
-                key={v.nomeRep}
-                onClick={() => navigate(`/vendedor/${encodeURIComponent(v.nomeRep)}`)}
+                key={v.represVend}
+                onClick={() => navigate(`/vendedor/${v.represVend}`)}
                 className={`border-b cursor-pointer transition-colors hover:bg-table-hover ${
                   i % 2 === 1 ? 'bg-table-row-alt' : ''
                 }`}
