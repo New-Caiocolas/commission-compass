@@ -10,36 +10,27 @@ interface Props {
 export function FiltrosAno({ anosDisponiveis }: Props) {
   const { anos, setAnos } = useFiltros();
 
-  // Usa anos disponíveis do banco se já carregou, senão usa padrão
   const anosParaExibir = anosDisponiveis.length > 0 ? anosDisponiveis : ANOS_PADRAO;
-
   const todosSelecionados = anosParaExibir.every(a => anos.includes(a));
 
   const toggleAno = (ano: number) => {
     const novosAnos = anos.includes(ano)
       ? anos.filter(a => a !== ano)
       : [...anos, ano];
-    // Nunca permite array vazio — mantém pelo menos um ano
     if (novosAnos.length > 0) setAnos(novosAnos);
   };
 
-  const selecionarTodos = () => {
-    setAnos([...anosParaExibir]);
-  };
-
-  console.log('anosParaExibir:', anosParaExibir);
-  console.log('anos selecionados:', anos);
-  console.log('queryAnos raw:', anosDisponiveis);
+  const selecionarTodos = () => setAnos([...anosParaExibir]);
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-xs font-medium text-muted-foreground mr-1">Ano:</span>
+      <span className="text-xs font-mono text-muted-foreground tracking-widest uppercase mr-1">Ano</span>
       <button
         onClick={selecionarTodos}
-        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+        className={`px-2.5 py-1 rounded text-xs font-mono font-semibold tracking-wide transition-all border ${
           todosSelecionados
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+            ? 'bg-primary/15 text-primary border-primary/40 glow-primary-sm'
+            : 'bg-secondary/50 text-muted-foreground border-border/60 hover:border-border hover:text-foreground'
         }`}
       >
         Todos
@@ -48,10 +39,10 @@ export function FiltrosAno({ anosDisponiveis }: Props) {
         <button
           key={ano}
           onClick={() => toggleAno(ano)}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+          className={`px-2.5 py-1 rounded text-xs font-mono font-semibold tracking-wide transition-all border ${
             anos.includes(ano)
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              ? 'bg-primary/15 text-primary border-primary/40 glow-primary-sm'
+              : 'bg-secondary/50 text-muted-foreground border-border/60 hover:border-border hover:text-foreground'
           }`}
         >
           {ano}

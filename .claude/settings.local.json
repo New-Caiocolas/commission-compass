@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find C:UserscaiocolasDownloadsclaude-cookbooks-main -type f \\\\\\(-name *.html -o -name *.jsx -o -name *.tsx -o -name *.vue \\\\\\))"
+    ]
+  }
+}
