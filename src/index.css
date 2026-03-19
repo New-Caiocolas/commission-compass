@@ -1,57 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700;800&display=swap');
-
 @layer base {
   :root {
-    /* ── Core ── */
+    /* ── Dark theme (padrão) ── */
     --background: 222 45% 4%;
     --foreground: 210 30% 92%;
-
-    /* ── Card surfaces ── */
     --card: 220 35% 8%;
     --card-foreground: 210 30% 92%;
-
     --popover: 220 35% 8%;
     --popover-foreground: 210 30% 92%;
-
-    /* ── Primary: neon mint ── */
     --primary: 158 100% 52%;
     --primary-foreground: 220 45% 4%;
-
-    /* ── Secondary surfaces ── */
     --secondary: 220 28% 13%;
     --secondary-foreground: 210 30% 92%;
-
-    /* ── Muted ── */
     --muted: 220 28% 11%;
     --muted-foreground: 215 18% 52%;
-
-    /* ── Accent (same neon) ── */
     --accent: 158 100% 52%;
     --accent-foreground: 220 45% 4%;
-
-    /* ── Semantic ── */
     --destructive: 0 72% 58%;
     --destructive-foreground: 0 0% 100%;
-
     --success: 142 76% 46%;
     --success-foreground: 220 45% 4%;
-
     --warning: 38 96% 54%;
     --warning-foreground: 220 45% 4%;
-
-    /* ── Border / Ring ── */
     --border: 220 28% 16%;
     --input: 220 28% 13%;
     --ring: 158 100% 52%;
-
-    /* ── Radius ── */
     --radius: 0.5rem;
-
-    /* ── Sidebar (darkest layer) ── */
     --sidebar-background: 222 45% 3%;
     --sidebar-foreground: 215 18% 52%;
     --sidebar-primary: 158 100% 52%;
@@ -60,92 +39,94 @@
     --sidebar-accent-foreground: 210 30% 92%;
     --sidebar-border: 220 28% 12%;
     --sidebar-ring: 158 100% 52%;
-
-    /* ── Table ── */
     --table-row-alt: 220 35% 6%;
     --table-hover: 158 100% 52% / 0.06;
-
-    /* ── Charts ── */
     --chart-1: 158 100% 52%;
     --chart-2: 38 96% 54%;
     --chart-3: 0 72% 58%;
     --chart-4: 217 91% 60%;
     --chart-5: 270 70% 60%;
-
-    /* ── Glow effects ── */
     --glow-primary: 0 0 20px hsl(158 100% 52% / 0.25);
     --glow-primary-sm: 0 0 8px hsl(158 100% 52% / 0.3);
+  }
+
+  /* ── Light theme ── */
+  html.light {
+    --background: 0 0% 97%;
+    --foreground: 220 25% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 15%;
+    --primary: 158 70% 38%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 93%;
+    --secondary-foreground: 220 25% 25%;
+    --muted: 220 15% 91%;
+    --muted-foreground: 220 12% 45%;
+    --accent: 158 70% 38%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 70% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 90% 48%;
+    --warning-foreground: 0 0% 100%;
+    --border: 220 15% 85%;
+    --input: 220 15% 91%;
+    --ring: 158 70% 38%;
+    --sidebar-background: 220 20% 96%;
+    --sidebar-foreground: 220 12% 45%;
+    --sidebar-primary: 158 70% 38%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 100%;
+    --sidebar-accent-foreground: 220 25% 15%;
+    --sidebar-border: 220 15% 88%;
+    --sidebar-ring: 158 70% 38%;
+    --table-row-alt: 220 15% 96%;
+    --table-hover: 158 70% 38% / 0.06;
+    --glow-primary: 0 0 20px hsl(158 70% 38% / 0.15);
+    --glow-primary-sm: 0 0 8px hsl(158 70% 38% / 0.2);
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
-  html {
-    scroll-behavior: smooth;
-  }
+  * { @apply border-border; }
+  html { scroll-behavior: smooth; }
 
   body {
     @apply bg-background text-foreground;
     font-family: 'Syne', system-ui, sans-serif;
     font-feature-settings: "tnum";
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, hsl(158 100% 52% / 0.06) 0%, transparent 60%),
-      radial-gradient(ellipse 40% 30% at 90% 90%, hsl(217 91% 60% / 0.05) 0%, transparent 50%);
-    background-attachment: fixed;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  /* Atmospheric grid overlay */
-  body::before {
+  /* Grid overlay — só no dark */
+  html:not(.light) body::before {
     content: '';
     position: fixed;
     inset: 0;
     background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, hsl(158 100% 52% / 0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 90% 90%, hsl(217 91% 60% / 0.05) 0%, transparent 50%),
       linear-gradient(hsl(220 45% 100% / 0.015) 1px, transparent 1px),
       linear-gradient(90deg, hsl(220 45% 100% / 0.015) 1px, transparent 1px);
-    background-size: 40px 40px;
+    background-size: auto, auto, 40px 40px, 40px 40px;
     pointer-events: none;
     z-index: 0;
   }
 
-  #root {
-    position: relative;
-    z-index: 1;
-  }
+  #root { position: relative; z-index: 1; }
 }
 
 @layer utilities {
-  .tabular-nums {
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* Monospace font for logo / code-like labels */
-  .font-mono-display {
-    font-family: 'Space Mono', monospace;
-  }
-
-  /* Neon glow on primary elements */
-  .glow-primary {
-    box-shadow: var(--glow-primary);
-  }
-  .glow-primary-sm {
-    box-shadow: var(--glow-primary-sm);
-  }
-
-  /* Neon text glow */
-  .text-glow {
-    text-shadow: 0 0 12px hsl(158 100% 52% / 0.6);
-  }
-
-  /* Animated entrance */
-  .animate-fade-in {
-    animation: fade-in 0.4s ease both;
-  }
-  .animate-slide-up {
-    animation: slide-up 0.4s ease both;
-  }
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+  .font-mono-display { font-family: 'Space Mono', monospace; }
+  .glow-primary { box-shadow: var(--glow-primary); }
+  .glow-primary-sm { box-shadow: var(--glow-primary-sm); }
+  .text-glow { text-shadow: 0 0 12px hsl(158 100% 52% / 0.6); }
+  .animate-fade-in { animation: fade-in 0.4s ease both; }
+  .animate-slide-up { animation: slide-up 0.4s ease both; }
 
   @keyframes fade-in {
     from { opacity: 0; }
@@ -156,7 +137,6 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* Stagger helpers */
   .delay-75  { animation-delay: 75ms; }
   .delay-150 { animation-delay: 150ms; }
   .delay-225 { animation-delay: 225ms; }

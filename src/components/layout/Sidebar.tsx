@@ -1,25 +1,32 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, FileText, ShieldCheck, Users, UserCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
-export function Sidebar() {
+interface SidebarNavProps {
+  onNavigate?: () => void;
+}
+
+export function SidebarNav({ onNavigate }: SidebarNavProps) {
   const { profile } = useAuth();
   const cargo = profile?.cargo;
 
   const links = [
-    cargo !== 'vendedor' && { to: '/',      label: 'Dashboard',     icon: LayoutDashboard },
-    cargo !== 'vendedor' && { to: '/notas', label: 'Notas Fiscais',  icon: FileText },
-    cargo === 'administrador' && { to: '/admin', label: 'Usuários', icon: ShieldCheck },
+    cargo !== 'vendedor' && { to: '/',                     label: 'Dashboard',        icon: LayoutDashboard },
+    cargo === 'administrador' && { to: '/clientes-ativos', label: 'Clientes Ativos',  icon: Users },
+    cargo !== 'vendedor' && { to: '/notas',                label: 'Notas Fiscais',    icon: FileText },
+    cargo === 'administrador' && { to: '/admin',           label: 'Usuários',         icon: ShieldCheck },
+    { to: '/perfil',                                        label: 'Meu Perfil',       icon: UserCircle },
   ].filter(Boolean) as { to: string; label: string; icon: React.ElementType }[];
 
   return (
-    <aside className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col shrink-0">
+    <>
       <nav className="flex-1 py-4 space-y-0.5 px-3">
         {links.map(({ to, label, icon: Icon }, i) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
+            onClick={onNavigate}
             style={{ animationDelay: `${i * 60}ms` }}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150 animate-slide-up ${
@@ -42,12 +49,19 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom decoration */}
       <div className="p-3 border-t border-sidebar-border">
         <div className="text-[10px] font-mono text-muted-foreground/40 tracking-widest uppercase">
           v2.0
         </div>
       </div>
+    </>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <aside className="hidden md:flex w-56 bg-sidebar border-r border-sidebar-border flex-col shrink-0">
+      <SidebarNav />
     </aside>
   );
 }

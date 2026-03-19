@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendedorResumo } from '@/utils/calculos';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
@@ -7,11 +8,12 @@ interface Props {
   vendedores: VendedorResumo[];
 }
 
-export function RankingVendedores({ vendedores }: Props) {
+export const RankingVendedores = React.memo(function RankingVendedores({ vendedores }: Props) {
   const navigate = useNavigate();
 
-  const sorted = [...vendedores].sort(
-    (a, b) => b.calculos.vlrComissaoFinal - a.calculos.vlrComissaoFinal
+  const sorted = useMemo(
+    () => [...vendedores].sort((a, b) => b.calculos.vlrComissaoFinal - a.calculos.vlrComissaoFinal),
+    [vendedores],
   );
 
   const max = sorted[0]?.calculos.vlrComissaoFinal ?? 1;
@@ -98,4 +100,4 @@ export function RankingVendedores({ vendedores }: Props) {
       </div>
     </div>
   );
-}
+});

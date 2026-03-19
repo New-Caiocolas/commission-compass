@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendedorResumo, CalculosResult } from '@/utils/calculos';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
@@ -8,11 +9,12 @@ interface Props {
   totais: CalculosResult;
 }
 
-export function TabelaVendedores({ vendedores, totais }: Props) {
+export const TabelaVendedores = React.memo(function TabelaVendedores({ vendedores, totais }: Props) {
   const navigate = useNavigate();
 
-  const sorted = [...vendedores].sort(
-    (a, b) => b.calculos.vlrComissaoFinal - a.calculos.vlrComissaoFinal
+  const sorted = useMemo(
+    () => [...vendedores].sort((a, b) => b.calculos.vlrComissaoFinal - a.calculos.vlrComissaoFinal),
+    [vendedores],
   );
 
   const maxComissao = sorted[0]?.calculos.vlrComissaoFinal ?? 1;
@@ -145,4 +147,4 @@ export function TabelaVendedores({ vendedores, totais }: Props) {
       </div>
     </div>
   );
-}
+});

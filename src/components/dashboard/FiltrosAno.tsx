@@ -1,3 +1,4 @@
+import React, { useCallback, useMemo } from 'react';
 import { useFiltros } from '@/contexts/FiltrosContext';
 
 const ANO_ATUAL = new Date().getFullYear();
@@ -7,20 +8,24 @@ interface Props {
   anosDisponiveis: number[];
 }
 
-export function FiltrosAno({ anosDisponiveis }: Props) {
+export const FiltrosAno = React.memo(function FiltrosAno({ anosDisponiveis }: Props) {
   const { anos, setAnos } = useFiltros();
 
-  const anosParaExibir = anosDisponiveis.length > 0 ? anosDisponiveis : ANOS_PADRAO;
+  const anosParaExibir = useMemo(
+    () => anosDisponiveis.length > 0 ? anosDisponiveis : ANOS_PADRAO,
+    [anosDisponiveis],
+  );
   const todosSelecionados = anosParaExibir.every(a => anos.includes(a));
 
-  const toggleAno = (ano: number) => {
-    const novosAnos = anos.includes(ano)
-      ? anos.filter(a => a !== ano)
-      : [...anos, ano];
-    if (novosAnos.length > 0) setAnos(novosAnos);
-  };
+  const toggleAno = useCallback((ano: number) => {
+    setAnos(
+      anos.includes(ano)
+        ? anos.filter(a => a !== ano)
+        : [...anos, ano],
+    );
+  }, [anos, setAnos]);
 
-  const selecionarTodos = () => setAnos([...anosParaExibir]);
+  const selecionarTodos = useCallback(() => setAnos([...anosParaExibir]), [anosParaExibir, setAnos]);
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -50,4 +55,4 @@ export function FiltrosAno({ anosDisponiveis }: Props) {
       ))}
     </div>
   );
-}
+});

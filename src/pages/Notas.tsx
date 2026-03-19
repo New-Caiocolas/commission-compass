@@ -102,8 +102,8 @@ export default function Notas() {
       </div>
 
       {/* Filtros */}
-      <div className="bg-card border rounded-lg p-4 flex flex-wrap gap-4 items-end">
-        <div className="flex flex-col gap-1 min-w-[200px]">
+      <div className="bg-card border rounded-lg p-3 md:p-4 flex flex-col sm:flex-row sm:flex-wrap gap-3 md:gap-4 sm:items-end">
+        <div className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[200px]">
           <label className="text-xs text-muted-foreground font-medium">Vendedor</label>
           <Select value={vendedor} onValueChange={v => handleFiltroChange(() => setVendedor(v))}>
             <SelectTrigger className="w-full">
@@ -118,24 +118,26 @@ export default function Notas() {
           </Select>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground font-medium">Data início</label>
-          <Input
-            type="date"
-            value={dataInicio}
-            onChange={e => handleFiltroChange(() => setDataInicio(e.target.value))}
-            className="w-40"
-          />
-        </div>
+        <div className="grid grid-cols-2 sm:flex gap-3 md:gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground font-medium">Data início</label>
+            <Input
+              type="date"
+              value={dataInicio}
+              onChange={e => handleFiltroChange(() => setDataInicio(e.target.value))}
+              className="w-full sm:w-40"
+            />
+          </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground font-medium">Data fim</label>
-          <Input
-            type="date"
-            value={dataFim}
-            onChange={e => handleFiltroChange(() => setDataFim(e.target.value))}
-            className="w-40"
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground font-medium">Data fim</label>
+            <Input
+              type="date"
+              value={dataFim}
+              onChange={e => handleFiltroChange(() => setDataFim(e.target.value))}
+              className="w-full sm:w-40"
+            />
+          </div>
         </div>
 
         {(vendedor !== 'todos' || dataInicio || dataFim) && (
@@ -197,7 +199,7 @@ export default function Notas() {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm">
           <span className="text-muted-foreground">
             {filtrados.length} registros — Página {pagina} de {totalPages}
           </span>

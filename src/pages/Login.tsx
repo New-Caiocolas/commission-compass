@@ -26,7 +26,7 @@ export default function Login() {
         <div className="h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
       </div>
 
-      <div className="relative w-full max-w-sm animate-slide-up">
+      <div className="relative w-full max-w-sm px-4 sm:px-0 animate-slide-up">
         {/* Header */}
         <div className="mb-8 text-center space-y-1">
           <h1 className="font-mono text-4xl font-bold text-primary text-glow tracking-tighter">
@@ -38,7 +38,7 @@ export default function Login() {
         </div>
 
         {/* Card */}
-        <div className="bg-card border border-border/60 rounded-lg p-8 space-y-5 shadow-2xl">
+        <div className="bg-card border border-border/60 rounded-lg p-5 sm:p-8 space-y-5 shadow-2xl">
           {/* Status */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground border border-border/60 rounded-full px-3 py-1.5 w-fit">
             <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />

@@ -21,7 +21,7 @@ export function useApuracao() {
   const { anos, meses } = useFiltros();
   const { profile } = useAuth();
 
-  // Query anos disponíveis
+  // Query anos disponíveis — independente do filtro
   const queryAnos = useQuery({
     queryKey: ['anos-disponiveis'],
     queryFn: async () => {
@@ -32,21 +32,22 @@ export function useApuracao() {
     staleTime: 1000 * 60 * 10,
   });
 
-  // Query principal — agrupada por vendedor
+  // Query principal — agrupada por vendedor direto no banco
   const query = useQuery({
     queryKey: ['apuracao', anos, meses],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_apuracao', {
         anos_filtro: anos,
-        meses_filtro: meses.length > 0 ? meses : undefined,
+        meses_filtro: meses.length > 0 && meses.length < 12 ? meses : null,
       });
       if (error) throw error;
       return (data as ApuracaoRPCRow[]) || [];
     },
     enabled: anos.length > 0,
+    staleTime: 1000 * 60 * 2,
   });
 
-  // Filtra vendedores que o supervisor pode ver
+  // Filtra por vendedores vinculados ao supervisor
   const dadosFiltrados = useMemo(() => {
     if (!query.data) return [];
     if (profile?.cargo === 'supervisor' && profile.vendedores_ids?.length) {
@@ -55,13 +56,8 @@ export function useApuracao() {
     return query.data;
   }, [query.data, profile]);
 
-  const porVendedor = useMemo(() => {
-    return agruparPorVendedor(dadosFiltrados);
-  }, [dadosFiltrados]);
-
-  const totais = useMemo(() => {
-    return calcularMedidas(dadosFiltrados);
-  }, [dadosFiltrados]);
+  const porVendedor = useMemo(() => agruparPorVendedor(dadosFiltrados), [dadosFiltrados]);
+  const totais = useMemo(() => calcularMedidas(dadosFiltrados), [dadosFiltrados]);
 
   return {
     dados: dadosFiltrados,

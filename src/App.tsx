@@ -5,12 +5,16 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { FiltrosProvider } from '@/contexts/FiltrosContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AppLayout } from '@/components/layout/AppLayout';
-import Dashboard from './pages/Dashboard';
+import Executivo from './pages/Executivo';
 import Vendedor from './pages/Vendedor';
 import Notas from './pages/Notas';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
+import ClientesAtivos from './pages/ClientesAtivos';
+import DashboardSupervisor from './pages/DashboardSupervisor';
+import Perfil from './pages/Perfil';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const queryClient = new QueryClient();
@@ -30,7 +34,6 @@ function AppRoutes() {
     );
   }
 
-  // Não logado → login
   if (!session) {
     return (
       <Routes>
@@ -40,13 +43,13 @@ function AppRoutes() {
     );
   }
 
-  // Vendedor → só a própria página
   if (profile?.cargo === 'vendedor') {
     if (profile.repres_vend != null) {
       const dest = `/vendedor/${profile.repres_vend}`;
       return (
         <Routes>
           <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
+          <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
           <Route path="*" element={<Navigate to={dest} replace />} />
         </Routes>
       );
@@ -58,13 +61,12 @@ function AppRoutes() {
     );
   }
 
-  // Supervisor → dashboard (filtrado), vendedor e notas
   if (profile?.cargo === 'supervisor') {
     return (
       <Routes>
-        <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+        <Route path="/" element={<AppLayout><DashboardSupervisor /></AppLayout>} />
         <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
-        <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
+        <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
@@ -73,10 +75,12 @@ function AppRoutes() {
   // Admin → acesso total
   return (
     <Routes>
-      <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+      <Route path="/" element={<AppLayout><Executivo /></AppLayout>} />
+      <Route path="/clientes-ativos" element={<AppLayout><ClientesAtivos /></AppLayout>} />
       <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
       <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
       <Route path="/admin" element={<AppLayout><Admin /></AppLayout>} />
+      <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -84,17 +88,19 @@ function AppRoutes() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <AuthProvider>
-          <FiltrosProvider>
-            <AppRoutes />
-          </FiltrosProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <AuthProvider>
+            <FiltrosProvider>
+              <AppRoutes />
+            </FiltrosProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

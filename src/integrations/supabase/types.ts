@@ -97,6 +97,34 @@ export type Database = {
           desconto_1: number
         }[]
       }
+      get_kpis_vendedor: {
+        Args: { anos_filtro: number[]; meses_filtro?: number[] }
+        Returns: {
+          nome_rep: string
+          repres_vend: number
+          qtd_nfs: number
+          qtd_clientes: number
+          vlr_nf: number
+          vlr_comissao_ajustada: number
+          vlr_negativo: number
+          vlr_excedente_nf: number
+          vlr_frete_cte: number
+          vlr_frete_desp: number
+          desconto_1: number
+        }[]
+      }
+      get_evolucao_mensal: {
+        Args: { anos_filtro: number[]; meses_filtro?: number[] }
+        Returns: {
+          ano: number
+          mes: number
+          vlr_nf: number
+          vlr_comissao: number
+          vlr_frete: number
+          vlr_negativo: number
+          qtd_nfs: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

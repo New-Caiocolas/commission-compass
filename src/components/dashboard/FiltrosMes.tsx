@@ -1,16 +1,19 @@
+import React, { useCallback } from 'react';
 import { useFiltros } from '@/contexts/FiltrosContext';
 import { MESES } from '@/utils/formatters';
 
-export function FiltrosMes() {
+const TODOS_MESES = Array.from({ length: 12 }, (_, i) => i + 1);
+
+export const FiltrosMes = React.memo(function FiltrosMes() {
   const { meses, setMeses } = useFiltros();
 
-  const toggleMes = (m: number) => {
+  const toggleMes = useCallback((m: number) => {
     setMeses(meses.includes(m) ? meses.filter(x => x !== m) : [...meses, m]);
-  };
+  }, [meses, setMeses]);
 
-  const selecionarTodos = () => {
-    setMeses(meses.length === 12 ? [] : Array.from({ length: 12 }, (_, i) => i + 1));
-  };
+  const selecionarTodos = useCallback(() => {
+    setMeses(meses.length === 12 ? [] : TODOS_MESES);
+  }, [meses.length, setMeses]);
 
   const todosAtivos = meses.length === 12;
   const nenhumAtivo = meses.length === 0;
@@ -43,4 +46,4 @@ export function FiltrosMes() {
       ))}
     </div>
   );
-}
+});

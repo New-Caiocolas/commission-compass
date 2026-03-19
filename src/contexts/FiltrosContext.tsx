@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 const ANO_ATUAL = new Date().getFullYear();
+const TODOS_MESES = Array.from({ length: 12 }, (_, i) => i + 1);
 
 interface FiltrosState {
   anos: number[];
@@ -12,9 +13,8 @@ interface FiltrosState {
 const FiltrosContext = createContext<FiltrosState | undefined>(undefined);
 
 export function FiltrosProvider({ children }: { children: ReactNode }) {
-  // Inicia com ano atual E ano anterior já selecionados
-  const [anos, setAnos] = useState<number[]>([ANO_ATUAL - 1, ANO_ATUAL]);
-  const [meses, setMeses] = useState<number[]>([]);
+  const [anos, setAnos] = useState<number[]>([ANO_ATUAL]);
+  const [meses, setMeses] = useState<number[]>(TODOS_MESES);
 
   return (
     <FiltrosContext.Provider value={{ anos, meses, setAnos, setMeses }}>
