@@ -1,4 +1,3 @@
-// Registro individual da tabela comissoes (usado em Notas.tsx)
 export interface ApuracaoRecord {
   id: number;
   num_nf: string;
@@ -19,7 +18,6 @@ export interface ApuracaoRecord {
   criado_em: string;
 }
 
-// Registro já agregado vindo da RPC get_apuracao
 export interface ApuracaoAgregada {
   repres_vend: number;
   nome_rep: string;
@@ -30,6 +28,7 @@ export interface ApuracaoAgregada {
   vlr_frete_cte: number;
   vlr_frete_desp: number;
   desconto_1: number;
+  qtd_nfs?: number;
 }
 
 export interface CalculosResult {
@@ -86,6 +85,7 @@ export function calcularMedidas(rows: ApuracaoAgregada[]): CalculosResult {
 export interface VendedorResumo {
   represVend: number;
   nomeRep: string;
+  qtdNfs: number;
   calculos: CalculosResult;
 }
 
@@ -97,6 +97,7 @@ export function agruparPorVendedor(rows: ApuracaoAgregada[]): VendedorResumo[] {
     .map(r => ({
       represVend: r.repres_vend,
       nomeRep: r.nome_rep,
+      qtdNfs: Number(r.qtd_nfs) || 0,
       calculos: calcularMedidas([r]),
     }));
 }

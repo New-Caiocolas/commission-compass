@@ -15,13 +15,13 @@ interface ApuracaoRPCRow {
   vlr_frete_cte: number;
   vlr_frete_desp: number;
   desconto_1: number;
+  qtd_nfs: number;
 }
 
 export function useApuracao() {
   const { anos, meses } = useFiltros();
   const { profile } = useAuth();
 
-  // Query anos disponíveis — independente do filtro
   const queryAnos = useQuery({
     queryKey: ['anos-disponiveis'],
     queryFn: async () => {
@@ -32,7 +32,6 @@ export function useApuracao() {
     staleTime: 1000 * 60 * 10,
   });
 
-  // Query principal — agrupada por vendedor direto no banco
   const query = useQuery({
     queryKey: ['apuracao', anos, meses],
     queryFn: async () => {
@@ -47,7 +46,6 @@ export function useApuracao() {
     staleTime: 1000 * 60 * 2,
   });
 
-  // Filtra por vendedores vinculados ao supervisor
   const dadosFiltrados = useMemo(() => {
     if (!query.data) return [];
     if (profile?.cargo === 'supervisor' && profile.vendedores_ids?.length) {

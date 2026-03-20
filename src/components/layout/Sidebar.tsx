@@ -11,11 +11,18 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
   const cargo = profile?.cargo;
 
   const links = [
-    cargo !== 'vendedor' && { to: '/',                     label: 'Dashboard',        icon: LayoutDashboard },
-    cargo === 'administrador' && { to: '/clientes-ativos', label: 'Clientes Ativos',  icon: Users },
-    cargo !== 'vendedor' && { to: '/notas',                label: 'Notas Fiscais',    icon: FileText },
-    cargo === 'administrador' && { to: '/admin',           label: 'Usuários',         icon: ShieldCheck },
-    { to: '/perfil',                                        label: 'Meu Perfil',       icon: UserCircle },
+    // Vendedor — dashboard próprio e notas próprias
+    cargo === 'vendedor' && { to: '/dashboard',          label: 'Meu Dashboard',    icon: LayoutDashboard },
+    cargo === 'vendedor' && { to: '/notas',              label: 'Notas Fiscais',    icon: FileText },
+
+    // Supervisor e Admin — dashboard geral
+    cargo !== 'vendedor' && { to: '/',                   label: 'Dashboard',        icon: LayoutDashboard },
+    cargo === 'administrador' && { to: '/clientes-ativos', label: 'Clientes Ativos', icon: Users },
+    cargo !== 'vendedor' && { to: '/notas',              label: 'Notas Fiscais',    icon: FileText },
+    cargo === 'administrador' && { to: '/admin',         label: 'Usuários',         icon: ShieldCheck },
+
+    // Todos os cargos
+    { to: '/perfil',                                      label: 'Meu Perfil',       icon: UserCircle },
   ].filter(Boolean) as { to: string; label: string; icon: React.ElementType }[];
 
   return (
@@ -25,7 +32,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
           <NavLink
             key={to}
             to={to}
-            end={to === '/'}
+            end={to === '/' || to === '/dashboard'}
             onClick={onNavigate}
             style={{ animationDelay: `${i * 60}ms` }}
             className={({ isActive }) =>

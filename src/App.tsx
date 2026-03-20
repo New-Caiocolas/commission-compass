@@ -45,12 +45,14 @@ function AppRoutes() {
 
   if (profile?.cargo === 'vendedor') {
     if (profile.repres_vend != null) {
-      const dest = `/vendedor/${profile.repres_vend}`;
+      const represVend = profile.repres_vend;
       return (
         <Routes>
-          <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
+          <Route path="/dashboard" element={<AppLayout><Vendedor /></AppLayout>} />
+          <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
           <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
-          <Route path="*" element={<Navigate to={dest} replace />} />
+          <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       );
     }
@@ -66,6 +68,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<AppLayout><DashboardSupervisor /></AppLayout>} />
         <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
+        <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
         <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

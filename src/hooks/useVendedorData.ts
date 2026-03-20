@@ -7,13 +7,21 @@ import type { Tables } from '@/integrations/supabase/types';
 
 type ComissaoRow = Tables<'comissoes'>;
 
-interface PorMesItem {
+export interface PorMesItem {
   mes: string;
   vlrNF: number;
   vlrComissaoFinal: number;
   percComissaoFinal: number;
   vlrFreteCTE: number;
   vlrFreteDespAcessoria: number;
+}
+
+export interface PorClienteItem {
+  nomeCliente: string;
+  vlrNF: number;
+  vlrNegativo: number;
+  qtdNFs: number;
+  temDevolucao: boolean;
 }
 
 function rowToAgregada(rows: ComissaoRow[]): ApuracaoAgregada {
@@ -48,7 +56,6 @@ export function useVendedorData(represVend: number) {
         .eq('repres_vend', represVend);
 
       if (anos.length > 0) {
-        // Cada ano precisa de AND interno (gte + lte), depois OR entre anos
         const orFilters = anos
           .map(a => `and(dt_pag.gte.${a}-01-01,dt_pag.lte.${a}-12-31)`)
           .join(',');
@@ -109,5 +116,60 @@ export function useVendedorData(represVend: number) {
     });
   }, [registros]);
 
-  return { registros, calcTotal, porMes, isLoading: query.isLoading };
+  // Agregado por cliente
+  const porCliente: PorClienteItem[] = useMemo(() => {
+    const map = new Map<string, ComissaoRow[]>();
+    for (const r of registros) {
+      const key = r.nome_cliente ?? 'Desconhecido';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
+    }
+    return Array.from(map.entries())
+      .map(([nomeCliente, rows]) => ({
+        nomeCliente,
+        vlrNF: rows.reduce((s, r) => s + (Number(r.prc_nf) || 0), 0),
+        vlrNegativo: rows.reduce((s, r) => s + (Number(r.vlr_negativa) || 0), 0),
+        qtdNFs: rows.length,
+        temDevolucao: rows.some(r => (Number(r.vlr_negativa) || 0) > 0),
+      }))
+      .sort((a, b) => b.vlrNF - a.vlrNF);
+  }, [registros]);
+
+  // Top 10 clientes por faturamento
+  const topClientes = useMemo(() => porCliente.slice(0, 10), [porCliente]);
+
+  // Clientes com devolução
+  const clientesComDevolucao = useMemo(
+    () => porCliente.filter(c => c.temDevolucao).sort((a, b) => b.vlrNegativo - a.vlrNegativo),
+    [porCliente],
+  );
+
+  // Faturamento por cliente por mês (top 5 clientes)
+  const fatPorClientePorMes = useMemo(() => {
+    const top5 = porCliente.slice(0, 5).map(c => c.nomeCliente);
+    const mesMap = new Map<string, Record<string, number>>();
+
+    for (const r of registros) {
+      const mes = getMesLabel(r.dt_pag);
+      if (!mes) continue;
+      const cliente = r.nome_cliente ?? 'Desconhecido';
+      if (!top5.includes(cliente)) continue;
+      if (!mesMap.has(mes)) mesMap.set(mes, {});
+      const entry = mesMap.get(mes)!;
+      entry[cliente] = (entry[cliente] || 0) + (Number(r.prc_nf) || 0);
+    }
+
+    return Array.from(mesMap.entries()).map(([mes, clientes]) => ({ mes, ...clientes }));
+  }, [registros, porCliente]);
+
+  return {
+    registros,
+    calcTotal,
+    porMes,
+    porCliente,
+    topClientes,
+    clientesComDevolucao,
+    fatPorClientePorMes,
+    isLoading: query.isLoading,
+  };
 }
