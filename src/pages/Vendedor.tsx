@@ -317,48 +317,6 @@ export default function Vendedor() {
         </div>
       </div>
 
-      {/* ── Tabela de NFs ── */}
-      <div className="bg-card border rounded-lg overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h2 className="text-sm font-semibold">Notas Fiscais</h2>
-          <span className="text-xs font-mono text-muted-foreground">{registros.length} registros</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-secondary/50">
-                <th className="text-left px-4 py-2 text-muted-foreground font-semibold">Num.NF</th>
-                <th className="text-left px-4 py-2 text-muted-foreground font-semibold">Cliente</th>
-                <th className="text-left px-4 py-2 text-muted-foreground font-semibold">Dt Pag</th>
-                <th className="text-right px-4 py-2 text-muted-foreground font-semibold">Prc NF</th>
-                <th className="text-right px-4 py-2 text-muted-foreground font-semibold">Vlr Ajustada</th>
-                <th className="text-right px-4 py-2 text-muted-foreground font-semibold">Vlr Excedente</th>
-                {!isVendedor && <th className="text-right px-4 py-2 text-muted-foreground font-semibold">Frete CTE</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {registros.map((r, i) => (
-                <tr key={r.id} className={`border-b hover:bg-secondary/30 transition-colors ${i % 2 === 1 ? 'bg-table-row-alt' : ''}`}>
-                  <td className="px-4 py-2">{r.num_nf}</td>
-                  <td className="px-4 py-2">{r.nome_cliente}</td>
-                  <td className="px-4 py-2">{formatDate(r.dt_pag)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{formatCurrency(r.prc_nf)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{formatCurrency(r.vlr_ajustada)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{formatCurrency(r.vlr_exced)}</td>
-                  {!isVendedor && <td className="px-4 py-2 text-right tabular-nums">{formatCurrency(r.vlr_frete)}</td>}
-                </tr>
-              ))}
-              {registros.length === 0 && (
-                <tr>
-                  <td colSpan={isVendedor ? 6 : 7} className="px-4 py-8 text-center text-muted-foreground">
-                    Nenhum registro encontrado
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }

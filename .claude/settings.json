@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/caiocolas/.claude/projects/c--Users-caiocolas-commission-compass/memory/**)"
+    ]
+  }
+}

@@ -3,7 +3,8 @@
     "allow": [
       "Bash(find C:UserscaiocolasDownloadsclaude-cookbooks-main -type f \\\\\\(-name *.html -o -name *.jsx -o -name *.tsx -o -name *.vue \\\\\\))",
       "Bash(grep -r \"class\\\\|def.*render\\\\|def.*display\\\\|def.*format\" /home/caiocolas/Downloads/claude-cookbooks-main/claude_agent_sdk/utils/*.py)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(xargs grep:*)"
     ]
   }
 }
