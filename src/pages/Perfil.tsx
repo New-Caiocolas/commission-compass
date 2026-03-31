@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Camera, User, Mail, Shield, Key, Save } from 'lucide-react';
+import { uploadFotoPerfil } from '@/lib/uploadFoto';
 
 export default function Perfil() {
   const { profile, session } = useAuth();
@@ -35,27 +36,19 @@ export default function Perfil() {
     if (!profile?.id) return;
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
-      const path = `perfil_${profile.id}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from('vendedores-fotos')
-        .upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
-
-      const { data: urlData } = supabase.storage
-        .from('vendedores-fotos')
-        .getPublicUrl(path);
+      const result = await uploadFotoPerfil(file, `perfil_${profile.id}`);
+      if (result.error) throw new Error(result.error);
 
       const { error: updateErr } = await supabase
         .from('profiles' as never)
-        .update({ foto_url: urlData.publicUrl } as never)
+        .update({ foto_url: result.publicUrl } as never)
         .eq('id', profile.id);
       if (updateErr) throw updateErr;
 
-      setFotoUrl(urlData.publicUrl);
+      setFotoUrl(result.publicUrl);
       toast({ title: 'Foto atualizada com sucesso!' });
-    } catch (err: any) {
-      toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro no upload', description: err instanceof Error ? err.message : 'Erro desconhecido', variant: 'destructive' });
     } finally {
       setUploading(false);
     }
@@ -72,8 +65,8 @@ export default function Perfil() {
         .eq('id', profile.id);
       if (error) throw error;
       toast({ title: 'Nome atualizado com sucesso!' });
-    } catch (err: any) {
-      toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro ao salvar', description: err instanceof Error ? err.message : 'Erro desconhecido', variant: 'destructive' });
     } finally {
       setSavingNome(false);
     }
@@ -98,8 +91,8 @@ export default function Perfil() {
       setSenhaAtual('');
       setSenhaNova('');
       setSenhaConfirm('');
-    } catch (err: any) {
-      toast({ title: 'Erro ao alterar senha', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro ao alterar senha', description: err instanceof Error ? err.message : 'Erro desconhecido', variant: 'destructive' });
     } finally {
       setSavingSenha(false);
     }

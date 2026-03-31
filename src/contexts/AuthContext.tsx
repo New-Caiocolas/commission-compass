@@ -8,6 +8,7 @@ interface UserProfile {
   cargo: 'administrador' | 'supervisor' | 'vendedor';
   repres_vend: number | null;
   vendedores_ids: number[] | null;
+  foto_url: string | null;
 }
 
 interface AuthState {
@@ -27,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(userId: string) {
     const { data, error } = await supabase
       .from('profiles' as never)
-      .select('id, nome, cargo, repres_vend, vendedores_ids')
+      .select('id, nome, cargo, repres_vend, vendedores_ids, foto_url')
       .eq('id', userId)
       .single();
     if (!error && data) {

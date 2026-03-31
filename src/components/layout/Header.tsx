@@ -10,6 +10,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { SidebarNav } from './Sidebar';
+import { Logo } from '@/components/Logo';
 
 const CARGO_LABEL: Record<string, string> = {
   administrador: 'Admin',
@@ -44,8 +45,8 @@ export function Header() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="w-64 bg-sidebar p-0 flex flex-col">
           <SheetHeader className="px-4 py-3 border-b border-sidebar-border">
-            <SheetTitle className="font-mono text-lg font-bold tracking-tighter text-primary text-glow">
-              ello
+            <SheetTitle>
+              <Logo size="sm" />
             </SheetTitle>
           </SheetHeader>
           <SidebarNav onNavigate={() => setOpen(false)} />
@@ -53,9 +54,7 @@ export function Header() {
       </Sheet>
 
       {/* Logo */}
-      <span className="font-mono text-lg font-bold tracking-tighter text-primary text-glow">
-        ello
-      </span>
+      <Logo size="sm" />
 
       <div className="hidden md:block h-5 w-px bg-border" />
 

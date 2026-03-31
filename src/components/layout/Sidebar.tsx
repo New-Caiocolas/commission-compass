@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, FileText, ShieldCheck, Users, UserCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { LogoIcon } from '@/components/Logo';
 
 interface SidebarNavProps {
   onNavigate?: () => void;
@@ -56,10 +57,11 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
         ))}
       </nav>
 
-      <div className="p-3 border-t border-sidebar-border">
-        <div className="text-[10px] font-mono text-muted-foreground/40 tracking-widest uppercase">
-          v2.0
-        </div>
+      <div className="p-3 border-t border-sidebar-border flex items-center gap-2">
+        <LogoIcon size={18} />
+        <span className="text-[10px] font-mono text-muted-foreground/40 tracking-widest uppercase">
+          ello v2.0
+        </span>
       </div>
     </>
   );

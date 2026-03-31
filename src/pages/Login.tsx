@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Logo } from '@/components/Logo';
 
 // Sanitize email: trim and lowercase. Never allow > 254 chars (RFC 5321).
 function sanitizeEmail(raw: string): string {
@@ -47,7 +48,14 @@ export default function Login() {
   const [lockCountdown, setLockCountdown] = useState(0);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
+
   function startLockout() {
+    if (countdownRef.current) clearInterval(countdownRef.current);
     const until = Date.now() + LOCKOUT_SECONDS * 1000;
     setLockedUntil(until);
     setLockCountdown(LOCKOUT_SECONDS);
@@ -55,6 +63,7 @@ export default function Login() {
       const remaining = Math.ceil((until - Date.now()) / 1000);
       if (remaining <= 0) {
         clearInterval(countdownRef.current!);
+        countdownRef.current = null;
         setLockedUntil(null);
         setLockCountdown(0);
         attemptsRef.current = 0;
@@ -119,13 +128,8 @@ export default function Login() {
 
       <div className="relative w-full max-w-sm px-4 sm:px-0 animate-slide-up">
         {/* Logo */}
-        <div className="mb-10 text-center space-y-2">
-          <h1 className="font-mono text-5xl font-bold text-primary text-glow tracking-tighter select-none">
-            ello
-          </h1>
-          <p className="text-[11px] text-muted-foreground tracking-[0.2em] uppercase font-medium">
-            Comissão sobre Notas Liquidadas
-          </p>
+        <div className="mb-10 flex justify-center">
+          <Logo size="lg" showSubtitle />
         </div>
 
         {/* Card */}

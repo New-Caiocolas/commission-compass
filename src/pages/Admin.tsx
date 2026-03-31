@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, ChevronUp, Camera, X } from 'lucide-react';
+import { uploadFotoPerfil } from '@/lib/uploadFoto';
 
 interface Profile {
   id: string;
@@ -36,7 +37,7 @@ function useVendedoresDisponiveis() {
           .limit(99999);
         if (e2) throw e2;
         const map = new Map<number, string>();
-        (d2 || []).forEach((r: any) => {
+        (d2 || []).forEach((r: { repres_vend: number | null; nome_rep: string | null }) => {
           if (r.repres_vend && r.nome_rep) map.set(Number(r.repres_vend), r.nome_rep);
         });
         return Array.from(map.entries())
@@ -56,13 +57,25 @@ function VendedoresSeletor({ value, onChange, vendedores }: {
   vendedores: Vendedor[];
 }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const toggleVendedor = (id: number) => {
     onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]);
   };
   const selecionados = vendedores.filter(v => value.includes(v.repres_vend));
 
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button type="button" onClick={() => setOpen(o => !o)}
         className="w-full h-8 text-sm bg-background border border-input rounded px-2 flex items-center justify-between hover:bg-secondary/50 transition-colors">
         <span className="truncate text-left text-sm">
@@ -102,27 +115,19 @@ function FotoUpload({ profileId, fotoUrl, onUploaded }: {
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
-      const path = `perfil_${profileId}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from('vendedores-fotos')
-        .upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
-
-      const { data: urlData } = supabase.storage
-        .from('vendedores-fotos')
-        .getPublicUrl(path);
+      const result = await uploadFotoPerfil(file, `perfil_${profileId}`);
+      if (result.error) throw new Error(result.error);
 
       const { error: updateErr } = await supabase
         .from('profiles' as never)
-        .update({ foto_url: urlData.publicUrl } as never)
+        .update({ foto_url: result.publicUrl } as never)
         .eq('id', profileId);
       if (updateErr) throw updateErr;
 
-      onUploaded(urlData.publicUrl);
+      onUploaded(result.publicUrl);
       toast({ title: 'Foto atualizada com sucesso' });
-    } catch (err: any) {
-      toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro no upload', description: err instanceof Error ? err.message : 'Erro desconhecido', variant: 'destructive' });
     } finally {
       setUploading(false);
     }

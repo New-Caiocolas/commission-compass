@@ -5,15 +5,24 @@ import { supabase } from '@/integrations/supabase/client';
 import { useApuracao } from '@/hooks/useApuracao';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFiltros } from '@/contexts/FiltrosContext';
+import { useToast } from '@/hooks/use-toast';
+import { uploadFotoPerfil } from '@/lib/uploadFoto';
 import { FiltrosAno } from '@/components/dashboard/FiltrosAno';
 import { FiltrosMes } from '@/components/dashboard/FiltrosMes';
-import { calcularMedidas } from '@/utils/calculos';
+import { calcularMedidas, type VendedorResumo } from '@/utils/calculos';
 import { formatCurrency, formatPercent, MESES } from '@/utils/formatters';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList, Cell } from 'recharts';
 import { ChevronLeft, ChevronRight, Camera, FileText, TrendingUp, DollarSign, AlertTriangle, Receipt, Percent, PiggyBank, Zap } from 'lucide-react';
 
 interface VendedorFoto { repres_vend: number; foto_url: string | null; }
+
+interface EvolucaoMensalVendedor {
+  ano: number;
+  mes: number;
+  vlr_nf: number;
+  vlr_comissao: number;
+}
 
 function useFotosVendedores(ids: number[]) {
   return useQuery({
@@ -39,7 +48,7 @@ function useEvolucaoMensalVendedor(anos: number[], meses: number[], represVend: 
         meses_filtro: meses.length > 0 && meses.length < 12 ? meses : null,
       } as never);
       if (error) throw error;
-      return (data || []) as any[];
+      return (data || []) as EvolucaoMensalVendedor[];
     },
     enabled: anos.length > 0 && represVend != null,
     staleTime: 1000 * 60 * 2,
@@ -51,18 +60,19 @@ function VendedorFotoPanel({ nomeRep, represVend, fotoUrl, canEdit }: {
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
   const initiais = nomeRep.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
-      const path = `${represVend}.${ext}`;
-      await supabase.storage.from('vendedores-fotos').upload(path, file, { upsert: true });
-      const { data: urlData } = supabase.storage.from('vendedores-fotos').getPublicUrl(path);
-      await supabase.from('profiles' as never).update({ foto_url: urlData.publicUrl } as never).eq('repres_vend', represVend);
+      const result = await uploadFotoPerfil(file, `${represVend}`);
+      if (result.error) throw new Error(result.error);
+      await supabase.from('profiles' as never).update({ foto_url: result.publicUrl } as never).eq('repres_vend', represVend);
       qc.invalidateQueries({ queryKey: ['fotos-vendedores'] });
+    } catch (err: unknown) {
+      toast({ title: 'Erro no upload', description: err instanceof Error ? err.message : 'Erro desconhecido', variant: 'destructive' });
     } finally { setUploading(false); }
   };
 
@@ -94,8 +104,8 @@ function VendedorFotoPanel({ nomeRep, represVend, fotoUrl, canEdit }: {
   );
 }
 
-const CustomBarLabel = ({ x, y, width, value }: any) => {
-  if (!value) return null;
+const CustomBarLabel = ({ x, y, width, value }: { x?: number; y?: number; width?: number; value?: number }) => {
+  if (!value || x == null || y == null || width == null) return null;
   return (
     <text x={x + width / 2} y={y - 4} fill="hsl(var(--foreground))" textAnchor="middle" fontSize={10} fontFamily="monospace">
       {formatCurrency(value)}
@@ -103,12 +113,14 @@ const CustomBarLabel = ({ x, y, width, value }: any) => {
   );
 };
 
-const ChartTooltip = ({ active, payload, label }: any) => {
+interface TooltipPayload { name: string; value: number; color: string; }
+
+const ChartTooltip = ({ active, payload, label }: { active?: boolean; payload?: TooltipPayload[]; label?: string }) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-card border border-border rounded-lg p-2.5 text-xs shadow-xl">
       <p className="font-semibold mb-1">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full" style={{ background: p.color }} />
           <span className="text-muted-foreground">{p.name}:</span>
@@ -119,9 +131,22 @@ const ChartTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+interface VendedorData {
+  nome_rep: string;
+  repres_vend: number;
+  qtd_nfs: number;
+  vlr_nf: number;
+  vlr_comissao_ajustada: number;
+  vlr_negativo: number;
+  vlr_excedente_nf: number;
+  vlr_frete_cte: number;
+  vlr_frete_desp: number;
+  desconto_1: number;
+}
+
 function CardVendedorFull({ vendedor, fotoUrl, evolucao, todosVendedores, canEdit, onVerDetalhes, total, idx, totalVendedores }: {
-  vendedor: any; fotoUrl?: string | null; evolucao: any[];
-  todosVendedores: any[];
+  vendedor: VendedorData; fotoUrl?: string | null; evolucao: EvolucaoMensalVendedor[];
+  todosVendedores: VendedorResumo[];
   canEdit: boolean; onVerDetalhes: () => void;
   total: number; idx: number; totalVendedores: number;
 }) {
@@ -354,8 +379,15 @@ export default function DashboardSupervisor() {
     [porVendedor],
   );
 
+  useEffect(() => {
+    if (vendedores.length > 0 && idx >= vendedores.length) {
+      setIdx(0);
+    }
+  }, [vendedores.length, idx]);
+
   const represVendIds = useMemo(() => vendedores.map(v => v.represVend), [vendedores]);
-  const vendedorAtual = vendedores[idx];
+  const safeIdx = vendedores.length > 0 ? Math.min(idx, vendedores.length - 1) : 0;
+  const vendedorAtual = vendedores[safeIdx];
   const { data: fotos = [] } = useFotosVendedores(represVendIds);
   const { data: evolucao = [] } = useEvolucaoMensalVendedor(anos, meses, vendedorAtual?.represVend ?? null);
 
@@ -413,7 +445,7 @@ export default function DashboardSupervisor() {
       <div className="flex items-center gap-2 shrink-0">
         {vendedores.map((v, i) => (
           <button key={v.represVend} onClick={() => setIdx(i)} title={v.nomeRep}
-            className={`h-1.5 rounded-full transition-all duration-200 ${i === idx ? 'bg-primary w-8' : 'bg-secondary w-4 hover:bg-primary/40'}`}
+            className={`h-1.5 rounded-full transition-all duration-200 ${i === safeIdx ? 'bg-primary w-8' : 'bg-secondary w-4 hover:bg-primary/40'}`}
           />
         ))}
         <span className="ml-auto text-xs text-muted-foreground font-mono">← → para navegar</span>
@@ -434,7 +466,7 @@ export default function DashboardSupervisor() {
           canEdit={isAdmin}
           onVerDetalhes={() => navigate(`/vendedor/${vendedorAtual.represVend}`)}
           total={totais.vlrNF}
-          idx={idx}
+          idx={safeIdx}
           totalVendedores={vendedores.length}
         />
 

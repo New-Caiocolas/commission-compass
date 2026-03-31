@@ -10,10 +10,10 @@ import { TabelaVendedores } from '@/components/dashboard/TabelaVendedores';
 import { RankingVendedores } from '@/components/dashboard/RankingVendedores';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
 import { Skeleton } from '@/components/ui/skeleton';
-import { VendedorResumo } from '@/utils/calculos';
+import { VendedorResumo, type CalculosResult } from '@/utils/calculos';
 
 // ── Alertas automáticos baseados nos dados ──────────────────────────────────
-function gerarAlertas(totais: any, porVendedor: VendedorResumo[]) {
+function gerarAlertas(totais: CalculosResult, porVendedor: VendedorResumo[]) {
   const alertas: { tipo: 'error' | 'warning' | 'success' | 'info'; mensagem: string; detalhe?: string }[] = [];
 
   // Vendedores com comissão negativa

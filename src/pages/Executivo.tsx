@@ -6,7 +6,7 @@ import { useFiltros } from '@/contexts/FiltrosContext';
 import { FiltrosAno } from '@/components/dashboard/FiltrosAno';
 import { FiltrosMes } from '@/components/dashboard/FiltrosMes';
 import { useApuracao } from '@/hooks/useApuracao';
-import { calcularMedidas } from '@/utils/calculos';
+import { calcularMedidas, type CalculosResult } from '@/utils/calculos';
 import { formatCurrency, formatPercent, MESES } from '@/utils/formatters';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -116,7 +116,7 @@ function Tip({ content, children }: { content?: string; children: React.ReactNod
 }
 
 function StatCard({ icon: Icon, label, value, sub, color = 'default', tip }: {
-  icon: any; label: string; value: string; sub?: string; tip?: string;
+  icon: React.ElementType; label: string; value: string; sub?: string; tip?: string;
   color?: 'default' | 'positive' | 'negative' | 'warning';
 }) {
   const colors = { default: 'text-foreground', positive: 'text-emerald-400', negative: 'text-destructive', warning: 'text-yellow-400' };
@@ -136,12 +136,14 @@ function StatCard({ icon: Icon, label, value, sub, color = 'default', tip }: {
   );
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface ChartPayload { name: string; value: number; color: string; }
+
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: ChartPayload[]; label?: string }) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-card border border-border rounded-lg p-3 text-xs space-y-1 shadow-xl">
       <p className="font-semibold text-foreground mb-2">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full" style={{ background: p.color }} />
           <span className="text-muted-foreground">{p.name}:</span>
@@ -155,7 +157,19 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 // ── Aba: Visão Geral ────────────────────────────────────────────────────────
-function AbaVisaoGeral({ totais, kpis, evolucaoFiltrada, totalNFs, totalClientes, ticketMedio, totalFrete, fretePercent, glosaPercent }: any) {
+interface AbaVisaoGeralProps {
+  totais: CalculosResult;
+  kpis: KPIVendedor[];
+  evolucaoFiltrada: (EvolucaoMensal & { label: string })[];
+  totalNFs: number;
+  totalClientes: number;
+  ticketMedio: number;
+  totalFrete: number;
+  fretePercent: number;
+  glosaPercent: number;
+}
+
+function AbaVisaoGeral({ totais, kpis, evolucaoFiltrada, totalNFs, totalClientes, ticketMedio, totalFrete, fretePercent, glosaPercent }: AbaVisaoGeralProps) {
   return (
     <div className="space-y-6">
       <div>
@@ -219,7 +233,17 @@ function AbaVisaoGeral({ totais, kpis, evolucaoFiltrada, totalNFs, totalClientes
 }
 
 // ── Aba: KPIs por Vendedor ──────────────────────────────────────────────────
-function AbaKPIsVendedor({ kpisSorted, totais, totalNFs, ticketMedio, fretePercent, glosaPercent, navigate }: any) {
+interface AbaKPIsVendedorProps {
+  kpisSorted: KPIVendedor[];
+  totais: CalculosResult;
+  totalNFs: number;
+  ticketMedio: number;
+  fretePercent: number;
+  glosaPercent: number;
+  navigate: (path: string) => void;
+}
+
+function AbaKPIsVendedor({ kpisSorted, totais, totalNFs, ticketMedio, fretePercent, glosaPercent, navigate }: AbaKPIsVendedorProps) {
   return (
     <div className="bg-card border border-border/60 rounded-lg overflow-hidden">
       <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between">

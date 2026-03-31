@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Download } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,15 +18,21 @@ import { ApuracaoRecord } from '@/utils/calculos';
 
 const PAGE_SIZE = 50;
 
-function useNotas() {
+function useNotas(represVend: number | null) {
   return useQuery({
-    queryKey: ['notas'],
+    queryKey: ['notas', represVend],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('comissoes')
         .select('*')
         .order('dt_pag', { ascending: false })
         .limit(99999);
+
+      if (represVend != null) {
+        q = q.eq('repres_vend', represVend);
+      }
+
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as ApuracaoRecord[];
     },
@@ -34,7 +41,9 @@ function useNotas() {
 }
 
 export default function Notas() {
-  const { data: notas = [], isLoading } = useNotas();
+  const { profile } = useAuth();
+  const represVendFiltro = profile?.cargo === 'vendedor' ? (profile.repres_vend ?? null) : null;
+  const { data: notas = [], isLoading } = useNotas(represVendFiltro);
   const [vendedor, setVendedor] = useState('todos');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
@@ -71,12 +80,19 @@ export default function Notas() {
   };
 
   const exportCSV = () => {
+    const escapeField = (val: unknown): string => {
+      const str = val == null ? '' : String(val);
+      return str.includes(';') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    };
     const headers = ['Num.NF', 'Vendedor', 'Cliente', 'Dt Pag', 'Prc NF', 'Vlr Ajustada', 'Vlr Negativa', 'Vlr Excedente', 'Frete CTE', 'Frete NF', 'Desconto 1'];
     const rows = filtrados.map(r => [
       r.num_nf, r.nome_rep, r.nome_cliente, r.dt_pag, r.prc_nf, r.vlr_ajustada,
       r.vlr_negativa, r.vlr_exced, r.vlr_frete, r.frete_na_nf, r.desconto_1,
-    ].join(';'));
-    const csv = [headers.join(';'), ...rows].join('\n');
+    ].map(escapeField).join(';'));
+    const bom = '\uFEFF';
+    const csv = bom + [headers.join(';'), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
