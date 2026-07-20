@@ -416,6 +416,23 @@ export type Database = {
           valor: number
         }[]
       }
+      get_kpi_financeiro_comparativo: {
+        Args: never
+        Returns: {
+          a_pagar_aberto: number
+          a_receber_aberto: number
+          despesa_mes: number
+          empresa_codigo: string
+          empresa_nome: string
+          inadimplencia_pct: number
+          mes_ref: string
+          pmp_dias: number
+          pmr_dias: number
+          receita_mes: number
+          resultado_mes: number
+          saldo_projetado: number
+        }[]
+      }
       get_kpi_financeiro_fluxo_semanal: {
         Args: { empresa_codigo?: string; semanas?: number }
         Returns: {

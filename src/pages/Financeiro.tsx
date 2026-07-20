@@ -179,6 +179,60 @@ function useResultadoMensal(empresaCodigo: string | null) {
   });
 }
 
+interface ComparativoEmpresa {
+  empresa_codigo: string; empresa_nome: string;
+  a_pagar_aberto: number; a_receber_aberto: number; saldo_projetado: number;
+  inadimplencia_pct: number; pmr_dias: number; pmp_dias: number;
+  receita_mes: number; despesa_mes: number; resultado_mes: number; mes_ref: string;
+}
+
+function useComparativo() {
+  return useQuery({
+    queryKey: ['financeiro-comparativo'],
+    queryFn: async () => {
+      // Sempre todas as empresas — independente do filtro de empresa da página.
+      const { data, error } = await supabase.rpc('get_kpi_financeiro_comparativo');
+      if (error) throw error;
+      return (data as ComparativoEmpresa[]).map(r => ({
+        ...r,
+        a_pagar_aberto: Number(r.a_pagar_aberto) || 0,
+        a_receber_aberto: Number(r.a_receber_aberto) || 0,
+        saldo_projetado: Number(r.saldo_projetado) || 0,
+        inadimplencia_pct: Number(r.inadimplencia_pct) || 0,
+        pmr_dias: Number(r.pmr_dias) || 0,
+        pmp_dias: Number(r.pmp_dias) || 0,
+        receita_mes: Number(r.receita_mes) || 0,
+        despesa_mes: Number(r.despesa_mes) || 0,
+        resultado_mes: Number(r.resultado_mes) || 0,
+      }));
+    },
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+interface RankingItem { nome: string; valor: number; quantidade: number }
+
+function useTopParceiros(
+  empresaCodigo: string | null,
+  fn: 'get_kpi_top_devedores' | 'get_kpi_top_fornecedores',
+  campoNome: 'cliente' | 'fornecedor',
+) {
+  return useQuery({
+    queryKey: ['kpi-financeiro', empresaCodigo, fn],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)(fn, { empresa_codigo: empresaCodigo, limite: 10 });
+      if (error) throw error;
+      return (data as Record<string, unknown>[]).map(r => ({
+        nome: String(r[campoNome] ?? '(sem nome)'),
+        valor: Number(r.valor) || 0,
+        quantidade: Number(r.quantidade) || 0,
+      })) as RankingItem[];
+    },
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
 function useFluxoSemanal(empresaCodigo: string | null, semanas: number) {
   return useQuery({
     queryKey: ['kpi-financeiro', empresaCodigo, 'fluxo-semanal', semanas],
@@ -266,6 +320,42 @@ const FinTooltip = ({ active, payload, label }: {
 
 const legendaTexto = (value: string) => <span className="text-xs text-foreground">{value}</span>;
 
+const truncaNome = (s: string) => (s.length > 22 ? s.slice(0, 21) + '…' : s);
+
+const RankingTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: RankingItem }[] }) => {
+  if (!active || !payload?.length) return null;
+  const item = payload[0].payload;
+  return (
+    <div className="bg-card border border-border rounded-lg p-3 text-xs shadow-xl space-y-0.5 max-w-[260px]">
+      <p className="font-semibold text-foreground break-words">{item.nome}</p>
+      <p className="font-mono font-semibold text-primary">{formatCurrency(item.valor)}</p>
+      <p className="text-muted-foreground">{item.quantidade} título{item.quantidade === 1 ? '' : 's'}</p>
+    </div>
+  );
+};
+
+/** Ranking horizontal (Top N por valor). Uma série só — cor única. */
+function RankingChart({ data, cor }: { data: RankingItem[]; cor: string }) {
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(180, data.length * 30 + 20)}>
+      <BarChart data={data} layout="vertical" margin={{ left: 4, right: 12 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+        <XAxis type="number" tickFormatter={compactBRL} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+        <YAxis
+          type="category"
+          dataKey="nome"
+          tickFormatter={truncaNome}
+          tick={{ fontSize: 11 }}
+          stroke="hsl(var(--muted-foreground))"
+          width={150}
+        />
+        <Tooltip content={<RankingTooltip />} cursor={{ fill: 'hsl(var(--muted-foreground) / 0.08)' }} />
+        <Bar dataKey="valor" fill={cor} radius={[0, 4, 4, 0]} maxBarSize={22} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ── Explicações dos KPIs (o que é + que decisão apoia) ───────────────────────
 interface KpiInfoTexto { oQueE: string; decisao: string }
 
@@ -303,11 +393,11 @@ const KPI_INFO: Record<string, KpiInfoTexto> = {
     decisao: 'Régua de cobrança e crédito: acima de ~5-10% já pede ação. Os 66% atuais concentram títulos antigos (2019-2020) — decidir entre campanha de cobrança, protesto ou baixa contábil dos incobráveis.',
   },
   pmr: {
-    oQueE: 'Prazo Médio de Recebimento: quantos dias, em média, entre emitir a venda e receber o dinheiro.',
-    decisao: 'Mede quanto tempo você financia o cliente. PMR subindo = caixa apertando mesmo com vendas boas. Meta: PMR menor que o PMP. (Requer data de baixa — fase 2 do sync.)',
+    oQueE: 'Prazo Médio de Recebimento: dias médios entre emitir a venda e receber o dinheiro, com base nos títulos recebidos nos últimos 12 meses.',
+    decisao: 'Mede quanto tempo você financia o cliente. PMR subindo = caixa apertando mesmo com vendas boas. Meta: manter o PMR menor que o PMP, para os fornecedores financiarem o ciclo em vez de você.',
   },
   pmp: {
-    oQueE: 'Prazo Médio de Pagamento: quantos dias, em média, entre a compra e o pagamento ao fornecedor.',
+    oQueE: 'Prazo Médio de Pagamento: dias médios entre a compra e o pagamento ao fornecedor, com base nos títulos pagos nos últimos 12 meses.',
     decisao: 'Mede o prazo que os fornecedores financiam o grupo. PMP maior que PMR = os fornecedores financiam seu ciclo (bom). PMP menor = você paga antes de receber (pressão no caixa).',
   },
   graficoResultado: {
@@ -321,6 +411,18 @@ const KPI_INFO: Record<string, KpiInfoTexto> = {
   graficoAging: {
     oQueE: 'Recebíveis em aberto distribuídos por faixa de atraso: a vencer, 0-30, 31-60, 61-90 e mais de 90 dias.',
     decisao: 'Priorizar a cobrança: títulos até 60 dias têm alta chance de recuperação (cobrança ativa); a faixa 90+ pede decisão dura — protesto, negativação ou baixa. Quanto mais a barra pesa à direita, pior a qualidade da carteira.',
+  },
+  comparativo: {
+    oQueE: 'As 3 empresas do grupo lado a lado nos principais indicadores, sempre com todas visíveis (não segue o filtro de empresa acima).',
+    decisao: 'Identificar qual empresa puxa o grupo pra cima ou pra baixo e replicar o que funciona. Diferenças grandes de PMR, inadimplência ou margem entre empresas do mesmo grupo indicam onde agir primeiro.',
+  },
+  topDevedores: {
+    oQueE: 'Os 10 clientes com maior valor de títulos vencidos e não pagos (recebíveis em atraso).',
+    decisao: 'É a lista de ligações de cobrança, em ordem de impacto. Concentração em poucos clientes = negociar caso a caso; muitos clientes pequenos = revisar a régua de cobrança automática. Direciona o esforço para onde há mais dinheiro a recuperar.',
+  },
+  topFornecedores: {
+    oQueE: 'Os 10 fornecedores com maior valor de títulos a pagar em aberto.',
+    decisao: 'Onde está concentrado o compromisso de caixa. Use para priorizar negociação de prazo/desconto com os maiores e planejar os desembolsos das próximas semanas.',
   },
 };
 
@@ -397,6 +499,9 @@ export default function Financeiro() {
   const { liquidez, prazos, inadimplencia, aging } = useKpiFinanceiro(filtro);
   const resultadoMensal = useResultadoMensal(filtro);
   const fluxoSemanal = useFluxoSemanal(filtro, semanasFluxo);
+  const comparativo = useComparativo();
+  const topDevedores = useTopParceiros(filtro, 'get_kpi_top_devedores', 'cliente');
+  const topFornecedores = useTopParceiros(filtro, 'get_kpi_top_fornecedores', 'fornecedor');
   const sync = useSyncFinanceiro();
   const ultimaSync = useUltimaSync();
   const isLoading = liquidez.isLoading || prazos.isLoading || inadimplencia.isLoading || aging.isLoading;
@@ -721,6 +826,84 @@ export default function Financeiro() {
         />
       </div>
 
+      {/* ── Comparativo entre empresas ── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold">Comparativo entre empresas</h2>
+            <p className="text-xs text-muted-foreground">
+              As 3 empresas lado a lado — sempre todas, independente do filtro acima.
+              {(comparativo.data?.[0]?.mes_ref) ? ` Valores de mês referentes a ${comparativo.data[0].mes_ref}.` : ''}
+            </p>
+          </div>
+          <KpiInfo titulo="Comparativo entre empresas" info={KPI_INFO.comparativo} />
+        </div>
+
+        {/* Posição financeira: a receber × a pagar por empresa */}
+        <div className="bg-card border border-border/60 rounded-lg p-4">
+          <h3 className="text-sm font-semibold mb-1">Posição em aberto por empresa</h3>
+          <p className="text-xs text-muted-foreground mb-4">A receber (entra) × a pagar (sai) em aberto.</p>
+          {comparativo.isLoading ? (
+            <Skeleton className="h-56 rounded-lg" />
+          ) : (
+            <ResponsiveContainer width="100%" height={230}>
+              <BarChart data={comparativo.data ?? []} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="empresa_nome" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tickFormatter={compactBRL} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={72} />
+                <Tooltip content={<FinTooltip />} />
+                <Legend formatter={legendaTexto} />
+                <Bar name="A receber" dataKey="a_receber_aberto" fill="hsl(var(--fin-in))" radius={[4, 4, 0, 0]} maxBarSize={44} />
+                <Bar name="A pagar" dataKey="a_pagar_aberto" fill="hsl(var(--fin-out))" radius={[4, 4, 0, 0]} maxBarSize={44} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Tabela lado a lado de todos os indicadores */}
+        <div className="bg-card border border-border/60 rounded-lg p-4 overflow-x-auto">
+          {comparativo.isLoading ? (
+            <Skeleton className="h-64 rounded-lg" />
+          ) : (
+            <table className="w-full text-sm min-w-[560px]">
+              <thead>
+                <tr className="border-b border-border/60">
+                  <th className="text-left font-medium text-muted-foreground py-2 pr-4">Indicador</th>
+                  {(comparativo.data ?? []).map(c => (
+                    <th key={c.empresa_codigo} className="text-right font-semibold py-2 pl-4 whitespace-nowrap">{c.empresa_nome}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="font-mono tabular-nums">
+                {([
+                  { rot: `Receita (${comparativo.data?.[0]?.mes_ref ?? 'mês'})`, get: (c: ComparativoEmpresa) => formatCurrency(c.receita_mes), cls: () => '' },
+                  { rot: `Despesa (${comparativo.data?.[0]?.mes_ref ?? 'mês'})`, get: (c: ComparativoEmpresa) => formatCurrency(c.despesa_mes), cls: () => '' },
+                  { rot: `Resultado (${comparativo.data?.[0]?.mes_ref ?? 'mês'})`, get: (c: ComparativoEmpresa) => formatCurrency(c.resultado_mes), cls: (c: ComparativoEmpresa) => c.resultado_mes >= 0 ? 'text-emerald-400' : 'text-destructive', bold: true },
+                  { rot: 'A receber (aberto)', get: (c: ComparativoEmpresa) => formatCurrency(c.a_receber_aberto), cls: () => '' },
+                  { rot: 'A pagar (aberto)', get: (c: ComparativoEmpresa) => formatCurrency(c.a_pagar_aberto), cls: () => '' },
+                  { rot: 'Saldo projetado', get: (c: ComparativoEmpresa) => formatCurrency(c.saldo_projetado), cls: (c: ComparativoEmpresa) => c.saldo_projetado >= 0 ? 'text-emerald-400' : 'text-destructive' },
+                  { rot: 'Inadimplência', get: (c: ComparativoEmpresa) => formatPercent(c.inadimplencia_pct), cls: (c: ComparativoEmpresa) => c.inadimplencia_pct > 0.1 ? 'text-destructive' : '' },
+                  { rot: 'PMR (recebimento)', get: (c: ComparativoEmpresa) => `${c.pmr_dias.toFixed(0)} dias`, cls: (c: ComparativoEmpresa) => c.pmr_dias > c.pmp_dias ? 'text-destructive' : '' },
+                  { rot: 'PMP (pagamento)', get: (c: ComparativoEmpresa) => `${c.pmp_dias.toFixed(0)} dias`, cls: () => '' },
+                ] as const).map((linha, i) => (
+                  <tr key={linha.rot} className={i < 8 ? 'border-b border-border/40' : ''}>
+                    <td className="text-left font-sans text-muted-foreground py-2 pr-4">{linha.rot}</td>
+                    {(comparativo.data ?? []).map(c => (
+                      <td key={c.empresa_codigo} className={`text-right py-2 pl-4 whitespace-nowrap ${('bold' in linha && linha.bold) ? 'font-bold' : ''} ${linha.cls(c) || 'text-foreground'}`}>
+                        {linha.get(c)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p className="text-[11px] text-muted-foreground mt-3">
+            PMR em vermelho = a empresa recebe mais devagar do que paga (financia o cliente). Inadimplência em vermelho = acima de 10%.
+          </p>
+        </div>
+      </div>
+
       {/* ── Aging de recebíveis ── */}
       <div className="bg-card border border-border/60 rounded-lg p-4">
         <div className="flex items-center justify-between gap-2 mb-1">
@@ -742,6 +925,39 @@ export default function Financeiro() {
             Nenhum título em aberto no período — sincronização com o Senior XT ainda não configurada ou sem dados.
           </p>
         )}
+      </div>
+
+      {/* ── Rankings acionáveis ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-card border border-border/60 rounded-lg p-4">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h3 className="text-sm font-semibold">Top 10 devedores (vencidos)</h3>
+            <KpiInfo titulo="Top 10 devedores" info={KPI_INFO.topDevedores} />
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">Clientes com maior valor a receber vencido — a lista de cobrança.</p>
+          {topDevedores.isLoading ? (
+            <Skeleton className="h-64 rounded-lg" />
+          ) : (topDevedores.data ?? []).length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-8">Nenhum recebível vencido no filtro atual.</p>
+          ) : (
+            <RankingChart data={topDevedores.data ?? []} cor="hsl(var(--destructive))" />
+          )}
+        </div>
+
+        <div className="bg-card border border-border/60 rounded-lg p-4">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h3 className="text-sm font-semibold">Top 10 fornecedores a pagar</h3>
+            <KpiInfo titulo="Top 10 fornecedores a pagar" info={KPI_INFO.topFornecedores} />
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">Fornecedores com maior valor a pagar em aberto — onde o caixa está comprometido.</p>
+          {topFornecedores.isLoading ? (
+            <Skeleton className="h-64 rounded-lg" />
+          ) : (topFornecedores.data ?? []).length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-8">Nenhum título a pagar em aberto no filtro atual.</p>
+          ) : (
+            <RankingChart data={topFornecedores.data ?? []} cor="hsl(var(--chart-4))" />
+          )}
+        </div>
       </div>
     </div>
   );
