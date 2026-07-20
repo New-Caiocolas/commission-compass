@@ -13,7 +13,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ComposedChart, Line, Legend, ReferenceLine, Cell,
 } from 'recharts';
-import { Landmark, TrendingUp, TrendingDown, Clock, AlertTriangle, RefreshCw, Scale } from 'lucide-react';
+import { Landmark, TrendingUp, TrendingDown, Clock, AlertTriangle, RefreshCw, Scale, Info } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MESES } from '@/utils/formatters';
 
 interface Empresa { id: string; codigo: string; nome: string }
@@ -265,17 +266,103 @@ const FinTooltip = ({ active, payload, label }: {
 
 const legendaTexto = (value: string) => <span className="text-xs text-foreground">{value}</span>;
 
-function StatCard({ icon: Icon, label, value, sub, color = 'default' }: {
+// ── Explicações dos KPIs (o que é + que decisão apoia) ───────────────────────
+interface KpiInfoTexto { oQueE: string; decisao: string }
+
+const KPI_INFO: Record<string, KpiInfoTexto> = {
+  receitaMes: {
+    oQueE: 'Total faturado em notas fiscais de saída no mês (todas as vendas emitidas, à vista e a prazo).',
+    decisao: 'Acompanhar se as vendas sustentam a estrutura de custos do grupo. Queda de receita por 2+ meses seguidos pede ação comercial (campanhas, preços, mix) antes que vire problema de caixa.',
+  },
+  despesaMes: {
+    oQueE: 'Soma dos títulos do contas a pagar liquidados no mês (fornecedores, impostos, folha, serviços).',
+    decisao: 'Controlar o ritmo de gastos e antecipar meses de pico — dez/2025 saltou para R$ 3,8M (13º, encargos). Planejar reserva de caixa para esses picos em vez de ser surpreendido.',
+  },
+  resultadoMes: {
+    oQueE: 'Receita faturada menos despesas pagas no mês. É o resultado GERENCIAL (visão de caixa) — não inclui CMV, depreciação nem regime de competência contábil.',
+    decisao: 'A resposta direta de "estamos ganhando ou queimando dinheiro?". Margem abaixo de ~10% por vários meses pede revisão de preços ou corte de custos; resultado negativo recorrente é alerta vermelho.',
+  },
+  resultadoAcumulado: {
+    oQueE: 'Soma do resultado gerencial de todos os meses fechados do período selecionado no filtro.',
+    decisao: 'A visão de longo prazo: o acumulado do ano diz se o grupo tem fôlego para investir/expandir ou se precisa frear. Use para metas anuais e para comparar anos entre si (filtro "Ano passado").',
+  },
+  contasPagar: {
+    oQueE: 'Total de compromissos assumidos e ainda não pagos (títulos em aberto no contas a pagar).',
+    decisao: 'Dimensionar o caixa necessário nas próximas semanas. Se está alto demais frente ao caixa disponível: renegociar prazos com fornecedores, priorizar pagamentos com juros/multa.',
+  },
+  contasReceber: {
+    oQueE: 'Total de vendas a prazo ainda não recebidas (títulos em aberto no contas a receber).',
+    decisao: 'É capital do grupo parado na mão de clientes. Se cresce mais rápido que a receita, a política de crédito está frouxa — apertar análise de crédito e prazos concedidos.',
+  },
+  saldoProjetado: {
+    oQueE: 'A receber em aberto menos a pagar em aberto. Se tudo fosse recebido e pago hoje, este seria o efeito líquido no caixa.',
+    decisao: 'Negativo significa que os compromissos superam os recebíveis — decidir entre antecipar recebíveis, captar capital de giro ou renegociar vencimentos ANTES do aperto chegar.',
+  },
+  inadimplencia: {
+    oQueE: 'Percentual da carteira de recebíveis que está vencida e não paga (valor vencido ÷ total em aberto).',
+    decisao: 'Régua de cobrança e crédito: acima de ~5-10% já pede ação. Os 66% atuais concentram títulos antigos (2019-2020) — decidir entre campanha de cobrança, protesto ou baixa contábil dos incobráveis.',
+  },
+  pmr: {
+    oQueE: 'Prazo Médio de Recebimento: quantos dias, em média, entre emitir a venda e receber o dinheiro.',
+    decisao: 'Mede quanto tempo você financia o cliente. PMR subindo = caixa apertando mesmo com vendas boas. Meta: PMR menor que o PMP. (Requer data de baixa — fase 2 do sync.)',
+  },
+  pmp: {
+    oQueE: 'Prazo Médio de Pagamento: quantos dias, em média, entre a compra e o pagamento ao fornecedor.',
+    decisao: 'Mede o prazo que os fornecedores financiam o grupo. PMP maior que PMR = os fornecedores financiam seu ciclo (bom). PMP menor = você paga antes de receber (pressão no caixa).',
+  },
+  graficoResultado: {
+    oQueE: 'Barras: receita faturada (verde) e despesas pagas (vermelho) por mês. Linha: resultado do mês. Mês atual em tom claro por estar incompleto.',
+    decisao: 'Enxergar tendência e sazonalidade: dezembro historicamente vira o mês crítico (13º, encargos). Use para planejar reservas, definir metas mensais e explicar o ano em reunião de diretoria.',
+  },
+  graficoFluxo: {
+    oQueE: 'Vencimentos em aberto agrupados por semana: entradas previstas (a receber) contra saídas previstas (a pagar). Linha = saldo semanal projetado.',
+    decisao: 'A pergunta "vai faltar caixa em qual semana?". Semanas vermelhas à frente pedem ação imediata: antecipar recebíveis, postergar pagamentos negociáveis ou reforçar cobrança dos vencidos.',
+  },
+  graficoAging: {
+    oQueE: 'Recebíveis em aberto distribuídos por faixa de atraso: a vencer, 0-30, 31-60, 61-90 e mais de 90 dias.',
+    decisao: 'Priorizar a cobrança: títulos até 60 dias têm alta chance de recuperação (cobrança ativa); a faixa 90+ pede decisão dura — protesto, negativação ou baixa. Quanto mais a barra pesa à direita, pior a qualidade da carteira.',
+  },
+};
+
+/** Ícone ⓘ que abre o popup explicativo do KPI (clique/toque — funciona no celular). */
+function KpiInfo({ titulo, info }: { titulo: string; info: KpiInfoTexto }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Sobre: ${titulo}`}
+          className="rounded-md p-1 -m-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={e => e.stopPropagation()}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 text-xs" align="end">
+        <p className="text-sm font-semibold text-foreground mb-1.5">{titulo}</p>
+        <p className="text-muted-foreground leading-relaxed mb-3">{info.oQueE}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-primary mb-1">Que decisão apoia</p>
+        <p className="text-muted-foreground leading-relaxed">{info.decisao}</p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, sub, color = 'default', info }: {
   icon: React.ElementType; label: string; value: string; sub?: string;
   color?: 'default' | 'positive' | 'negative' | 'warning';
+  info?: KpiInfoTexto;
 }) {
   const colors = { default: 'text-foreground', positive: 'text-emerald-400', negative: 'text-destructive', warning: 'text-yellow-400' };
   return (
     <div className="bg-card border border-border/60 rounded-lg p-4 flex flex-col gap-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground tracking-widest uppercase font-medium">{label}</span>
-        <div className="bg-secondary rounded-md p-1.5">
-          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {info && <KpiInfo titulo={label} info={info} />}
+          <div className="bg-secondary rounded-md p-1.5">
+            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
         </div>
       </div>
       <p className={`text-2xl font-bold tabular-nums font-mono ${colors[color]}`}>{value}</p>
@@ -471,12 +558,14 @@ export default function Financeiro() {
               label={`Receita (${mesFechado.rotulo})`}
               value={formatCurrency(mesFechado.receita)}
               color="positive"
+              info={KPI_INFO.receitaMes}
             />
             <StatCard
               icon={TrendingDown}
               label={`Despesa (${mesFechado.rotulo})`}
               value={formatCurrency(mesFechado.despesa)}
               color="negative"
+              info={KPI_INFO.despesaMes}
             />
             <StatCard
               icon={Scale}
@@ -484,6 +573,7 @@ export default function Financeiro() {
               value={formatCurrency(mesFechado.resultado)}
               sub={margem != null ? `margem de ${formatPercent(margem)} sobre a receita` : undefined}
               color={mesFechado.resultado >= 0 ? 'positive' : 'negative'}
+              info={KPI_INFO.resultadoMes}
             />
             <StatCard
               icon={Landmark}
@@ -491,6 +581,7 @@ export default function Financeiro() {
               value={formatCurrency(acumulado.resultado)}
               sub={`${mesesFechados.length} ${mesesFechados.length === 1 ? 'mês fechado' : 'meses fechados'} · receita ${compactBRL(acumulado.receita)} − despesa ${compactBRL(acumulado.despesa)}`}
               color={acumulado.resultado >= 0 ? 'positive' : 'negative'}
+              info={KPI_INFO.resultadoAcumulado}
             />
           </div>
         ) : (
@@ -500,7 +591,10 @@ export default function Financeiro() {
         )}
 
         <div className="bg-card border border-border/60 rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-1">Receita × Despesa por mês</h3>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h3 className="text-sm font-semibold">Receita × Despesa por mês</h3>
+            <KpiInfo titulo="Receita × Despesa por mês" info={KPI_INFO.graficoResultado} />
+          </div>
           <p className="text-xs text-muted-foreground mb-4">
             {resultadoPeriodo.length > 0
               ? `${resultadoPeriodo[0].rotulo} a ${resultadoPeriodo[resultadoPeriodo.length - 1].rotulo}`
@@ -546,7 +640,10 @@ export default function Financeiro() {
 
       {/* ── Fluxo de caixa projetado ── */}
       <div className="bg-card border border-border/60 rounded-lg p-4">
-        <h3 className="text-sm font-semibold mb-1">Fluxo de caixa projetado (próximas {semanasFluxo} semanas)</h3>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <h3 className="text-sm font-semibold">Fluxo de caixa projetado (próximas {semanasFluxo} semanas)</h3>
+          <KpiInfo titulo="Fluxo de caixa projetado" info={KPI_INFO.graficoFluxo} />
+        </div>
         <p className="text-xs text-muted-foreground mb-4">
           Títulos em aberto por semana de vencimento: entradas (a receber) × saídas (a pagar). Linha = saldo da semana.
         </p>
@@ -585,12 +682,14 @@ export default function Financeiro() {
           label="Contas a Pagar (aberto)"
           value={formatCurrency(liquidez.data?.total_a_pagar_aberto ?? 0)}
           color="negative"
+          info={KPI_INFO.contasPagar}
         />
         <StatCard
           icon={TrendingUp}
           label="Contas a Receber (aberto)"
           value={formatCurrency(liquidez.data?.total_a_receber_aberto ?? 0)}
           color="positive"
+          info={KPI_INFO.contasReceber}
         />
         <StatCard
           icon={Landmark}
@@ -598,6 +697,7 @@ export default function Financeiro() {
           value={formatCurrency(liquidez.data?.saldo_projetado ?? 0)}
           sub="a receber − a pagar (em aberto)"
           color={(liquidez.data?.saldo_projetado ?? 0) >= 0 ? 'positive' : 'negative'}
+          info={KPI_INFO.saldoProjetado}
         />
         <StatCard
           icon={AlertTriangle}
@@ -605,22 +705,28 @@ export default function Financeiro() {
           value={formatPercent(inadimplencia.data?.percentual ?? 0)}
           sub={`${formatCurrency(inadimplencia.data?.valor_vencido ?? 0)} vencidos`}
           color={(inadimplencia.data?.percentual ?? 0) > 0.1 ? 'negative' : 'default'}
+          info={KPI_INFO.inadimplencia}
         />
         <StatCard
           icon={Clock}
           label="PMR (Prazo Médio Recebimento)"
           value={`${(prazos.data?.pmr_dias ?? 0).toFixed(0)} dias`}
+          info={KPI_INFO.pmr}
         />
         <StatCard
           icon={Clock}
           label="PMP (Prazo Médio Pagamento)"
           value={`${(prazos.data?.pmp_dias ?? 0).toFixed(0)} dias`}
+          info={KPI_INFO.pmp}
         />
       </div>
 
       {/* ── Aging de recebíveis ── */}
       <div className="bg-card border border-border/60 rounded-lg p-4">
-        <h3 className="text-sm font-semibold mb-1">Aging de Recebíveis (em aberto)</h3>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <h3 className="text-sm font-semibold">Aging de Recebíveis (em aberto)</h3>
+          <KpiInfo titulo="Aging de Recebíveis" info={KPI_INFO.graficoAging} />
+        </div>
         <p className="text-xs text-muted-foreground mb-4">Valor em aberto por faixa de atraso</p>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={aging.data ?? []}>
