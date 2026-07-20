@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, ShieldCheck, Users, UserCircle } from 'lucide-react';
+import { LayoutDashboard, FileText, ShieldCheck, Users, UserCircle, Wallet, Landmark } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LogoIcon } from '@/components/Logo';
 
@@ -20,6 +20,8 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
     cargo !== 'vendedor' && { to: '/',                   label: 'Dashboard',        icon: LayoutDashboard },
     cargo === 'administrador' && { to: '/clientes-ativos', label: 'Clientes Ativos', icon: Users },
     cargo !== 'vendedor' && { to: '/notas',              label: 'Notas Fiscais',    icon: FileText },
+    cargo === 'administrador' && { to: '/flex-semestral', label: 'Flex Semestral',  icon: Wallet },
+    cargo === 'administrador' && { to: '/financeiro',     label: 'Financeiro',      icon: Landmark },
     cargo === 'administrador' && { to: '/admin',         label: 'Usuários',         icon: ShieldCheck },
 
     // Todos os cargos

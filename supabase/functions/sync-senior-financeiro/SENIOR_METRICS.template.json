@@ -1,0 +1,6 @@
+{
+  "endpoint": "https://webp02.seniorcloud.com.br:30301/g5-senior-services/sapiens_Synccom_ello_metrics",
+  "user": "<PREENCHER: usuario do SGU (tecnico de preferencia)>",
+  "password": "<PREENCHER na hora de setar o secret; nao versionar>",
+  "encryption": 0
+}

@@ -12,65 +12,335 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       comissoes: {
         Row: {
+          criado_em: string
+          desconto_1: number
+          dt_pag: string
+          frete_na_nf: number
           id: number
-          num_nf: string | null
-          dt_pag: string | null
-          repres_vend: number | null
-          nome_rep: string | null
-          nome_cliente: string | null
-          prc_nf: number | null
-          vlr_desc: number | null
-          vlr_acresc: number | null
-          vlr_negativa: number | null
-          vlr_ajustada: number | null
-          vlr_base_comis: number | null
-          vlr_exced: number | null
-          vlr_frete: number | null
-          frete_na_nf: number | null
-          desconto_1: number | null
-          criado_em: string | null
+          nome_cliente: string
+          nome_rep: string
+          num_nf: string
+          prc_nf: number
+          repres_vend: number
+          vlr_acresc: number
+          vlr_ajustada: number
+          vlr_base_comis: number
+          vlr_desc: number
+          vlr_exced: number
+          vlr_frete: number
+          vlr_negativa: number
         }
         Insert: {
+          criado_em?: string
+          desconto_1?: number
+          dt_pag: string
+          frete_na_nf?: number
           id?: number
-          num_nf?: string | null
-          dt_pag?: string | null
-          repres_vend?: number | null
-          nome_rep?: string | null
-          nome_cliente?: string | null
-          prc_nf?: number | null
-          vlr_desc?: number | null
-          vlr_acresc?: number | null
-          vlr_negativa?: number | null
-          vlr_ajustada?: number | null
-          vlr_base_comis?: number | null
-          vlr_exced?: number | null
-          vlr_frete?: number | null
-          frete_na_nf?: number | null
-          desconto_1?: number | null
-          criado_em?: string | null
+          nome_cliente: string
+          nome_rep: string
+          num_nf: string
+          prc_nf?: number
+          repres_vend: number
+          vlr_acresc?: number
+          vlr_ajustada?: number
+          vlr_base_comis?: number
+          vlr_desc?: number
+          vlr_exced?: number
+          vlr_frete?: number
+          vlr_negativa?: number
         }
         Update: {
+          criado_em?: string
+          desconto_1?: number
+          dt_pag?: string
+          frete_na_nf?: number
           id?: number
-          num_nf?: string | null
-          dt_pag?: string | null
+          nome_cliente?: string
+          nome_rep?: string
+          num_nf?: string
+          prc_nf?: number
+          repres_vend?: number
+          vlr_acresc?: number
+          vlr_ajustada?: number
+          vlr_base_comis?: number
+          vlr_desc?: number
+          vlr_exced?: number
+          vlr_frete?: number
+          vlr_negativa?: number
+        }
+        Relationships: []
+      }
+      financeiro_contas_pagar: {
+        Row: {
+          centro_custo: string | null
+          data_emissao: string | null
+          data_pagamento: string | null
+          data_vencimento: string | null
+          empresa_id: string
+          fornecedor: string | null
+          id: string
+          raw_payload: Json | null
+          senior_titulo: string
+          status: string | null
+          synced_at: string | null
+          valor: number | null
+        }
+        Insert: {
+          centro_custo?: string | null
+          data_emissao?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          empresa_id: string
+          fornecedor?: string | null
+          id?: string
+          raw_payload?: Json | null
+          senior_titulo: string
+          status?: string | null
+          synced_at?: string | null
+          valor?: number | null
+        }
+        Update: {
+          centro_custo?: string | null
+          data_emissao?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          empresa_id?: string
+          fornecedor?: string | null
+          id?: string
+          raw_payload?: Json | null
+          senior_titulo?: string
+          status?: string | null
+          synced_at?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_contas_pagar_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "financeiro_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financeiro_contas_receber: {
+        Row: {
+          centro_custo: string | null
+          cliente: string | null
+          data_emissao: string | null
+          data_pagamento: string | null
+          data_vencimento: string | null
+          empresa_id: string
+          id: string
+          raw_payload: Json | null
+          senior_titulo: string
+          status: string | null
+          synced_at: string | null
+          valor: number | null
+        }
+        Insert: {
+          centro_custo?: string | null
+          cliente?: string | null
+          data_emissao?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          empresa_id: string
+          id?: string
+          raw_payload?: Json | null
+          senior_titulo: string
+          status?: string | null
+          synced_at?: string | null
+          valor?: number | null
+        }
+        Update: {
+          centro_custo?: string | null
+          cliente?: string | null
+          data_emissao?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          empresa_id?: string
+          id?: string
+          raw_payload?: Json | null
+          senior_titulo?: string
+          status?: string | null
+          synced_at?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_contas_receber_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "financeiro_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financeiro_empresas: {
+        Row: {
+          ativo: boolean | null
+          codigo: string
+          created_at: string | null
+          id: string
+          nome: string
+          senior_codigo_empresa: number | null
+          senior_codigo_filial: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          codigo: string
+          created_at?: string | null
+          id?: string
+          nome: string
+          senior_codigo_empresa?: number | null
+          senior_codigo_filial?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          codigo?: string
+          created_at?: string | null
+          id?: string
+          nome?: string
+          senior_codigo_empresa?: number | null
+          senior_codigo_filial?: number | null
+        }
+        Relationships: []
+      }
+      financeiro_faturamento: {
+        Row: {
+          ano: number
+          empresa_id: string
+          id: string
+          mes: number
+          qtd_notas: number | null
+          synced_at: string | null
+          valor_total: number | null
+        }
+        Insert: {
+          ano: number
+          empresa_id: string
+          id?: string
+          mes: number
+          qtd_notas?: number | null
+          synced_at?: string | null
+          valor_total?: number | null
+        }
+        Update: {
+          ano?: number
+          empresa_id?: string
+          id?: string
+          mes?: number
+          qtd_notas?: number | null
+          synced_at?: string | null
+          valor_total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_faturamento_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "financeiro_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financeiro_sync_log: {
+        Row: {
+          empresa_id: string | null
+          executado_em: string | null
+          id: string
+          mensagem: string | null
+          numero_lote: string | null
+          registros: number | null
+          servico: string
+          status: string
+        }
+        Insert: {
+          empresa_id?: string | null
+          executado_em?: string | null
+          id?: string
+          mensagem?: string | null
+          numero_lote?: string | null
+          registros?: number | null
+          servico: string
+          status: string
+        }
+        Update: {
+          empresa_id?: string | null
+          executado_em?: string | null
+          id?: string
+          mensagem?: string | null
+          numero_lote?: string | null
+          registros?: number | null
+          servico?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_sync_log_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "financeiro_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          cargo: string
+          created_at: string
+          foto_url: string | null
+          id: string
+          nome: string
+          repres_vend: number | null
+          vendedores_ids: number[] | null
+        }
+        Insert: {
+          cargo?: string
+          created_at?: string
+          foto_url?: string | null
+          id: string
+          nome?: string
           repres_vend?: number | null
-          nome_rep?: string | null
-          nome_cliente?: string | null
-          prc_nf?: number | null
-          vlr_desc?: number | null
-          vlr_acresc?: number | null
-          vlr_negativa?: number | null
-          vlr_ajustada?: number | null
-          vlr_base_comis?: number | null
-          vlr_exced?: number | null
-          vlr_frete?: number | null
-          frete_na_nf?: number | null
-          desconto_1?: number | null
-          criado_em?: string | null
+          vendedores_ids?: number[] | null
+        }
+        Update: {
+          cargo?: string
+          created_at?: string
+          foto_url?: string | null
+          id?: string
+          nome?: string
+          repres_vend?: number | null
+          vendedores_ids?: number[] | null
         }
         Relationships: []
       }
@@ -80,37 +350,35 @@ export type Database = {
     }
     Functions: {
       get_anos_disponiveis: {
-        Args: Record<never, never>
-        Returns: { ano: number }[]
+        Args: never
+        Returns: {
+          ano: number
+        }[]
       }
       get_apuracao: {
         Args: { anos_filtro: number[]; meses_filtro?: number[] }
         Returns: {
-          repres_vend: number
+          desconto_1: number
           nome_rep: string
-          vlr_nf: number
+          qtd_nfs: number
+          repres_vend: number
           vlr_comissao_ajustada: number
-          vlr_negativo: number
           vlr_excedente_nf: number
           vlr_frete_cte: number
           vlr_frete_desp: number
-          desconto_1: number
+          vlr_negativo: number
+          vlr_nf: number
         }[]
       }
-      get_kpis_vendedor: {
-        Args: { anos_filtro: number[]; meses_filtro?: number[] }
+      get_clientes_ativos: {
+        Args: never
         Returns: {
+          nome_cliente: string
           nome_rep: string
-          repres_vend: number
           qtd_nfs: number
-          qtd_clientes: number
-          vlr_nf: number
-          vlr_comissao_ajustada: number
-          vlr_negativo: number
-          vlr_excedente_nf: number
-          vlr_frete_cte: number
-          vlr_frete_desp: number
-          desconto_1: number
+          repres_vend: number
+          total_comprado: number
+          ultima_compra: string
         }[]
       }
       get_evolucao_mensal: {
@@ -118,11 +386,100 @@ export type Database = {
         Returns: {
           ano: number
           mes: number
-          vlr_nf: number
+          qtd_nfs: number
           vlr_comissao: number
           vlr_frete: number
           vlr_negativo: number
+          vlr_nf: number
+        }[]
+      }
+      get_evolucao_mensal_vendedor: {
+        Args: {
+          anos_filtro: number[]
+          meses_filtro?: number[]
+          repres_vend_filtro: number
+        }
+        Returns: {
+          ano: number
+          mes: number
           qtd_nfs: number
+          vlr_comissao: number
+          vlr_negativo: number
+          vlr_nf: number
+        }[]
+      }
+      get_kpi_financeiro_aging: {
+        Args: { empresa_codigo?: string }
+        Returns: {
+          faixa: string
+          quantidade: number
+          valor: number
+        }[]
+      }
+      get_kpi_financeiro_fluxo_semanal: {
+        Args: { empresa_codigo?: string; semanas?: number }
+        Returns: {
+          entradas: number
+          saidas: number
+          saldo: number
+          semana: string
+        }[]
+      }
+      get_kpi_financeiro_inadimplencia: {
+        Args: { empresa_codigo?: string }
+        Returns: {
+          percentual: number
+          valor_total_aberto: number
+          valor_vencido: number
+        }[]
+      }
+      get_kpi_financeiro_liquidez: {
+        Args: { empresa_codigo?: string }
+        Returns: {
+          saldo_projetado: number
+          total_a_pagar_aberto: number
+          total_a_receber_aberto: number
+        }[]
+      }
+      get_kpi_financeiro_prazos: {
+        Args: { empresa_codigo?: string }
+        Returns: {
+          pmp_dias: number
+          pmr_dias: number
+        }[]
+      }
+      get_kpi_financeiro_resultado: {
+        Args: { empresa_codigo?: string; meses?: number }
+        Returns: {
+          ano: number
+          despesa: number
+          mes: number
+          receita: number
+          resultado: number
+        }[]
+      }
+      get_kpis_vendedor: {
+        Args: { anos_filtro: number[]; meses_filtro?: number[] }
+        Returns: {
+          desconto_1: number
+          nome_rep: string
+          qtd_clientes: number
+          qtd_nfs: number
+          repres_vend: number
+          vlr_comissao_ajustada: number
+          vlr_excedente_nf: number
+          vlr_frete_cte: number
+          vlr_frete_desp: number
+          vlr_negativo: number
+          vlr_nf: number
+        }[]
+      }
+      get_my_cargo: { Args: never; Returns: string }
+      get_representantes: {
+        Args: never
+        Returns: {
+          nome_rep: string
+          repres_vend: number
         }[]
       }
     }
@@ -253,8 +610,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
-

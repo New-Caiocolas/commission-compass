@@ -48,6 +48,10 @@
     --chart-5: 270 70% 60%;
     --glow-primary: 0 0 20px hsl(158 100% 52% / 0.25);
     --glow-primary-sm: 0 0 8px hsl(158 100% 52% / 0.3);
+
+    /* Gráficos financeiros: dinheiro entrando / saindo (validados p/ contraste e CVD) */
+    --fin-in: 157 88% 33%;
+    --fin-out: 0 72% 58%;
   }
 
   /* ── Light theme ── */
@@ -56,6 +60,8 @@
     --foreground: 220 25% 15%;
     --card: 0 0% 100%;
     --card-foreground: 220 25% 15%;
+    --fin-in: 158 70% 38%;
+    --fin-out: 0 72% 50%;
     --popover: 0 0% 100%;
     --popover-foreground: 220 25% 15%;
     --primary: 158 70% 38%;

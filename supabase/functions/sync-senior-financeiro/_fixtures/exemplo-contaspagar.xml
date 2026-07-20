@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="http://services.senior.com.br">
+  <soapenv:Body>
+    <ser:exportarResponse>
+      <return>
+        <numeroLote>20260717001</numeroLote>
+        <registros>
+          <registro>
+            <numeroTitulo>PAG-1001</numeroTitulo>
+            <nomeFornecedor>Distribuidora Alfa Ltda</nomeFornecedor>
+            <valorTitulo>15320.50</valorTitulo>
+            <dataEmissao>2026-06-10</dataEmissao>
+            <dataVencimento>2026-07-10</dataVencimento>
+            <dataPagamento>2026-07-09</dataPagamento>
+            <situacao>PAGO</situacao>
+            <centroCusto>CD-01</centroCusto>
+          </registro>
+          <registro>
+            <numeroTitulo>PAG-1002</numeroTitulo>
+            <nomeFornecedor>Embalagens Beta S.A.</nomeFornecedor>
+            <valorTitulo>4899.90</valorTitulo>
+            <dataEmissao>2026-06-25</dataEmissao>
+            <dataVencimento>2026-07-25</dataVencimento>
+            <dataPagamento></dataPagamento>
+            <situacao>ABERTO</situacao>
+            <centroCusto>ADM</centroCusto>
+          </registro>
+        </registros>
+      </return>
+    </ser:exportarResponse>
+  </soapenv:Body>
+</soapenv:Envelope>

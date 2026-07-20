@@ -19,6 +19,8 @@ const Login = lazy(() => import('./pages/Login'));
 const ClientesAtivos = lazy(() => import('./pages/ClientesAtivos'));
 const DashboardSupervisor = lazy(() => import('./pages/DashboardSupervisor'));
 const Perfil = lazy(() => import('./pages/Perfil'));
+const FlexSemestral = lazy(() => import('./pages/FlexSemestral'));
+const Financeiro = lazy(() => import('./pages/Financeiro'));
 
 // ── QueryClient with production defaults ─────────────────────────────────────
 const queryClient = new QueryClient({
@@ -156,6 +158,8 @@ function AppRoutes() {
         <Route path="/clientes-ativos" element={<AppLayout><ClientesAtivos /></AppLayout>} />
         <Route path="/vendedor/:represVend" element={<AppLayout><Vendedor /></AppLayout>} />
         <Route path="/notas" element={<AppLayout><Notas /></AppLayout>} />
+        <Route path="/flex-semestral" element={<AppLayout><FlexSemestral /></AppLayout>} />
+        <Route path="/financeiro" element={<AppLayout><Financeiro /></AppLayout>} />
         <Route path="/admin" element={<AppLayout><Admin /></AppLayout>} />
         <Route path="/perfil" element={<AppLayout><Perfil /></AppLayout>} />
         <Route path="*" element={<Navigate to="/" replace />} />
