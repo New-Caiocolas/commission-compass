@@ -123,13 +123,13 @@ export interface MappedFaturamento {
   mes: number;
   valor_total: number;
   qtd_notas: number;
+  impostos: number;
+  deducoes: number;
 }
 
 /**
- * Registro da porta ConsultarFaturamento. O Senior agrega por DIA (o parser do
- * Senior SQL 2 não aceita função no GROUP BY, então YEAR/MONTH ficam aqui):
- * cada linha tem codEmp, dataDia (DD/MM/AAAA), valorTotal e qtdNotas do dia —
- * o chamador ainda precisa agregar dia -> mês.
+ * Registro da porta ConsultarFaturamento (agregado por DIA no Senior, o chamador
+ * agrega dia -> mês). Além do valor bruto, traz impostos e deduções para a DRE.
  */
 export function mapFaturamentoRecord(record: Record<string, unknown>): MappedFaturamento {
   const codEmpRaw = fieldValue(record, "codEmp");
@@ -140,6 +140,27 @@ export function mapFaturamentoRecord(record: Record<string, unknown>): MappedFat
     mes: dia ? Number(dia.slice(5, 7)) : 0,
     valor_total: parseBrNumber(fieldValue(record, "valorTotal")),
     qtd_notas: Number(fieldValue(record, "qtdNotas")) || 0,
+    impostos: parseBrNumber(fieldValue(record, "impostos")),
+    deducoes: parseBrNumber(fieldValue(record, "deducoes")),
+  };
+}
+
+export interface MappedCmv {
+  senior_codigo_empresa: number | null;
+  ano: number;
+  mes: number;
+  valor: number;
+}
+
+/** Registro da porta ConsultarCMV (custo das saídas de venda, por empresa/dia). */
+export function mapCmvRecord(record: Record<string, unknown>): MappedCmv {
+  const codEmpRaw = fieldValue(record, "codEmp");
+  const dia = parseBrDate(fieldValue(record, "dataDia"));
+  return {
+    senior_codigo_empresa: codEmpRaw ? Number(codEmpRaw) || null : null,
+    ano: dia ? Number(dia.slice(0, 4)) : 0,
+    mes: dia ? Number(dia.slice(5, 7)) : 0,
+    valor: parseBrNumber(fieldValue(record, "cmv")),
   };
 }
 

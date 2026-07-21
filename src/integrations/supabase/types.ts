@@ -475,6 +475,22 @@ export type Database = {
           resultado: number
         }[]
       }
+      get_kpi_top_devedores: {
+        Args: { empresa_codigo?: string; limite?: number }
+        Returns: {
+          cliente: string
+          quantidade: number
+          valor: number
+        }[]
+      }
+      get_kpi_top_fornecedores: {
+        Args: { empresa_codigo?: string; limite?: number }
+        Returns: {
+          fornecedor: string
+          quantidade: number
+          valor: number
+        }[]
+      }
       get_kpis_vendedor: {
         Args: { anos_filtro: number[]; meses_filtro?: number[] }
         Returns: {

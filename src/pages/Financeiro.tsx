@@ -13,7 +13,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ComposedChart, Line, Legend, ReferenceLine, Cell,
 } from 'recharts';
-import { Landmark, TrendingUp, TrendingDown, Clock, AlertTriangle, RefreshCw, Scale, Info } from 'lucide-react';
+import { Landmark, TrendingUp, TrendingDown, Clock, AlertTriangle, RefreshCw, Scale, Info, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MESES } from '@/utils/formatters';
 
@@ -179,6 +179,36 @@ function useResultadoMensal(empresaCodigo: string | null) {
   });
 }
 
+interface DreMes {
+  ano: number; mes: number;
+  receita_bruta: number; impostos: number; deducoes: number;
+  receita_liquida: number; cmv: number; lucro_bruto: number; margem_bruta: number;
+}
+
+function useDre(empresaCodigo: string | null) {
+  return useQuery({
+    queryKey: ['kpi-financeiro', empresaCodigo, 'dre'],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)('get_kpi_financeiro_dre', {
+        empresa_codigo: empresaCodigo, meses: 36,
+      });
+      if (error) throw error;
+      return (data as DreMes[]).map(r => ({
+        ano: r.ano, mes: r.mes,
+        receita_bruta: Number(r.receita_bruta) || 0,
+        impostos: Number(r.impostos) || 0,
+        deducoes: Number(r.deducoes) || 0,
+        receita_liquida: Number(r.receita_liquida) || 0,
+        cmv: Number(r.cmv) || 0,
+        lucro_bruto: Number(r.lucro_bruto) || 0,
+        margem_bruta: Number(r.margem_bruta) || 0,
+      }));
+    },
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
 interface ComparativoEmpresa {
   empresa_codigo: string; empresa_nome: string;
   a_pagar_aberto: number; a_receber_aberto: number; saldo_projetado: number;
@@ -220,8 +250,7 @@ function useTopParceiros(
   return useQuery({
     queryKey: ['kpi-financeiro', empresaCodigo, fn],
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.rpc as any)(fn, { empresa_codigo: empresaCodigo, limite: 10 });
+      const { data, error } = await supabase.rpc(fn, { empresa_codigo: empresaCodigo, limite: 10 });
       if (error) throw error;
       return (data as Record<string, unknown>[]).map(r => ({
         nome: String(r[campoNome] ?? '(sem nome)'),
@@ -424,6 +453,10 @@ const KPI_INFO: Record<string, KpiInfoTexto> = {
     oQueE: 'Os 10 fornecedores com maior valor de títulos a pagar em aberto.',
     decisao: 'Onde está concentrado o compromisso de caixa. Use para priorizar negociação de prazo/desconto com os maiores e planejar os desembolsos das próximas semanas.',
   },
+  dre: {
+    oQueE: 'DRE gerencial: Receita Bruta − impostos − deduções = Receita Líquida − CMV (custo das mercadorias vendidas) = Lucro Bruto. Vai até o Lucro Bruto (o lucro líquido exigiria a contabilidade fechada, que não é feita no Senior).',
+    decisao: 'A margem bruta real, depois de impostos e custo do produto — o quanto sobra para pagar as despesas operacionais. Margem caindo mês a mês = repensar preços, mix de produtos ou negociação de compra. É o indicador de saúde do modelo de negócio.',
+  },
 };
 
 /** Ícone ⓘ que abre o popup explicativo do KPI (clique/toque — funciona no celular). */
@@ -447,6 +480,180 @@ function KpiInfo({ titulo, info }: { titulo: string; info: KpiInfoTexto }) {
         <p className="text-muted-foreground leading-relaxed">{info.decisao}</p>
       </PopoverContent>
     </Popover>
+  );
+}
+
+// ── Resumo executivo automático (insights em linguagem de decisão) ───────────
+type TomInsight = 'positivo' | 'atencao' | 'critico' | 'info';
+interface Insight { tom: TomInsight; texto: string }
+
+const NOMES_GRUPO = ['ELLO', 'FAZ DO BRASIL', 'IMPERATRIZ'];
+const ehIntercompany = (nome: string) => NOMES_GRUPO.some(g => nome.toUpperCase().includes(g));
+
+interface DadosResumo {
+  escopo: string; // "o grupo" ou "a Ello Atacadão"
+  mesFechado?: { rotulo: string; receita: number; despesa: number; resultado: number };
+  mesAnterior?: { resultado: number };
+  inadimplencia?: { percentual: number; valor_vencido: number };
+  aging90?: number;
+  prazos?: { pmr: number; pmp: number };
+  fluxoNegativas: { rotulo: string; saldo: number }[];
+  piorEmpresa?: { nome: string; pmr: number; inadimplencia: number };
+  topDevedor?: { nome: string; valor: number; quantidade: number };
+}
+
+function gerarResumoExecutivo(d: DadosResumo): Insight[] {
+  const ins: Insight[] = [];
+
+  if (d.mesFechado) {
+    const m = d.mesFechado;
+    const margem = m.receita > 0 ? m.resultado / m.receita : 0;
+    if (m.resultado >= 0) {
+      let t = `Em ${m.rotulo}, ${d.escopo} teve resultado positivo de ${formatCurrency(m.resultado)} (margem de ${formatPercent(margem)}).`;
+      if (d.mesAnterior) {
+        const delta = m.resultado - d.mesAnterior.resultado;
+        t += delta >= 0
+          ? ` Melhorou ${formatCurrency(Math.abs(delta))} frente ao mês anterior.`
+          : ` Caiu ${formatCurrency(Math.abs(delta))} frente ao mês anterior.`;
+      }
+      ins.push({ tom: 'positivo', texto: t });
+    } else {
+      ins.push({
+        tom: 'critico',
+        texto: `Em ${m.rotulo}, ${d.escopo} teve resultado NEGATIVO de ${formatCurrency(m.resultado)} — as despesas pagas superaram a receita faturada.`,
+      });
+    }
+  }
+
+  if (d.inadimplencia && d.inadimplencia.percentual > 0.1) {
+    let t = `${formatPercent(d.inadimplencia.percentual)} da carteira a receber está vencida (${formatCurrency(d.inadimplencia.valor_vencido)}).`;
+    if (d.aging90 && d.aging90 > 0) t += ` Desses, ${formatCurrency(d.aging90)} há mais de 90 dias — candidatos a negociação, protesto ou baixa.`;
+    ins.push({ tom: d.inadimplencia.percentual > 0.3 ? 'critico' : 'atencao', texto: t });
+  }
+
+  if (d.fluxoNegativas.length > 0) {
+    const pior = d.fluxoNegativas.reduce((a, b) => (b.saldo < a.saldo ? b : a));
+    ins.push({
+      tom: 'atencao',
+      texto: `Caixa projetado negativo em ${d.fluxoNegativas.length} das próximas semanas (pior: semana de ${pior.rotulo}, ${formatCurrency(pior.saldo)}). Avaliar antecipar recebíveis ou postergar pagamentos.`,
+    });
+  }
+
+  if (d.prazos && d.prazos.pmr > 0 && d.prazos.pmp > 0) {
+    const diff = d.prazos.pmr - d.prazos.pmp;
+    if (diff > 5) {
+      ins.push({
+        tom: 'atencao',
+        texto: `${d.escopo} recebe em ${d.prazos.pmr.toFixed(0)} dias mas paga em ${d.prazos.pmp.toFixed(0)} — financia o cliente por ${diff.toFixed(0)} dias, pressionando o caixa.`,
+      });
+    } else if (diff < -3) {
+      ins.push({
+        tom: 'positivo',
+        texto: `Ciclo de caixa saudável: recebe em ${d.prazos.pmr.toFixed(0)} dias e paga em ${d.prazos.pmp.toFixed(0)} — os fornecedores financiam a operação.`,
+      });
+    }
+  }
+
+  if (d.piorEmpresa) {
+    ins.push({
+      tom: 'atencao',
+      texto: `Entre as empresas, ${d.piorEmpresa.nome} é o ponto de atenção: PMR de ${d.piorEmpresa.pmr.toFixed(0)} dias e inadimplência de ${formatPercent(d.piorEmpresa.inadimplencia)}.`,
+    });
+  }
+
+  if (d.topDevedor) {
+    const td = d.topDevedor;
+    if (ehIntercompany(td.nome)) {
+      ins.push({
+        tom: 'info',
+        texto: `O maior "devedor" é intercompany — ${td.nome} (${formatCurrency(td.valor)}, ${td.quantidade} títulos). É conta a consolidar entre empresas do grupo, não cobrança externa.`,
+      });
+    } else {
+      ins.push({
+        tom: 'atencao',
+        texto: `Maior devedor externo: ${td.nome}, com ${formatCurrency(td.valor)} vencidos em ${td.quantidade} título${td.quantidade === 1 ? '' : 's'} — priorizar na cobrança.`,
+      });
+    }
+  }
+
+  return ins;
+}
+
+const TOM_ESTILO: Record<TomInsight, { icon: React.ElementType; cor: string }> = {
+  positivo: { icon: CheckCircle2, cor: 'text-emerald-400' },
+  atencao: { icon: AlertTriangle, cor: 'text-yellow-400' },
+  critico: { icon: AlertCircle, cor: 'text-destructive' },
+  info: { icon: Info, cor: 'text-primary' },
+};
+
+function ResumoExecutivo({ insights, isLoading }: { insights: Insight[]; isLoading: boolean }) {
+  if (isLoading) return <Skeleton className="h-28 rounded-lg" />;
+  if (insights.length === 0) return null;
+  return (
+    <div className="bg-primary/[0.06] border border-primary/25 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Sparkles className="h-4 w-4 text-primary" />
+        <h2 className="text-sm font-semibold">Resumo executivo</h2>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">gerado dos dados atuais</span>
+      </div>
+      <ul className="space-y-2">
+        {insights.map((i, idx) => {
+          const { icon: Icon, cor } = TOM_ESTILO[i.tom];
+          return (
+            <li key={idx} className="flex items-start gap-2.5 text-sm">
+              <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${cor}`} />
+              <span className="text-foreground/90 leading-relaxed">{i.texto}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** DRE em cascata (Receita Bruta → Líquida → Lucro Bruto) para um mês. */
+function DreCascata({ d }: { d: DreMes }) {
+  const linhas: { rot: string; val: number; tipo: 'base' | 'menos' | 'subtotal' | 'resultado' }[] = [
+    { rot: 'Receita Bruta', val: d.receita_bruta, tipo: 'base' },
+    { rot: '(−) Impostos s/ venda', val: -d.impostos, tipo: 'menos' },
+    { rot: '(−) Deduções e devoluções', val: -d.deducoes, tipo: 'menos' },
+    { rot: '(=) Receita Líquida', val: d.receita_liquida, tipo: 'subtotal' },
+    { rot: '(−) CMV (custo das vendas)', val: -d.cmv, tipo: 'menos' },
+    { rot: '(=) Lucro Bruto', val: d.lucro_bruto, tipo: 'resultado' },
+  ];
+  const base = d.receita_bruta || 1;
+  return (
+    <table className="w-full text-sm">
+      <tbody className="font-mono tabular-nums">
+        {linhas.map((l) => {
+          const pct = l.val / base;
+          const isSub = l.tipo === 'subtotal';
+          const isRes = l.tipo === 'resultado';
+          return (
+            <tr
+              key={l.rot}
+              className={`${isSub || isRes ? 'border-t border-border/60' : ''} ${isRes ? 'border-b-2 border-border' : ''}`}
+            >
+              <td className={`py-1.5 pr-4 font-sans ${isSub || isRes ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                {l.rot}
+              </td>
+              <td className={`py-1.5 text-right whitespace-nowrap ${isRes ? 'font-bold ' : ''}${
+                isRes ? (l.val >= 0 ? 'text-emerald-400' : 'text-destructive') : l.tipo === 'menos' ? 'text-destructive/80' : 'text-foreground'
+              }`}>
+                {formatCurrency(l.val)}
+              </td>
+              <td className="py-1.5 pl-3 text-right text-xs text-muted-foreground w-16">
+                {formatPercent(pct)}
+              </td>
+            </tr>
+          );
+        })}
+        <tr>
+          <td className="pt-2 font-sans text-xs text-muted-foreground">Margem bruta (sobre receita líquida)</td>
+          <td className="pt-2 text-right font-bold text-primary" colSpan={2}>{formatPercent(d.margem_bruta)}</td>
+        </tr>
+      </tbody>
+    </table>
   );
 }
 
@@ -498,6 +705,7 @@ export default function Financeiro() {
 
   const { liquidez, prazos, inadimplencia, aging } = useKpiFinanceiro(filtro);
   const resultadoMensal = useResultadoMensal(filtro);
+  const dre = useDre(filtro);
   const fluxoSemanal = useFluxoSemanal(filtro, semanasFluxo);
   const comparativo = useComparativo();
   const topDevedores = useTopParceiros(filtro, 'get_kpi_top_devedores', 'cliente');
@@ -516,6 +724,9 @@ export default function Financeiro() {
   // Último mês FECHADO dentro do período (o mês corrente aparece no gráfico como parcial)
   const mesesFechados = resultadoPeriodo.filter(r => !r.parcial);
   const mesFechado = mesesFechados[mesesFechados.length - 1];
+  const dreMes = mesFechado
+    ? (dre.data ?? []).find(d => d.ano === mesFechado.ano && d.mes === mesFechado.mes)
+    : undefined;
   const margem = mesFechado && mesFechado.receita > 0 ? mesFechado.resultado / mesFechado.receita : null;
 
   // Acumulado dos meses fechados do período selecionado
@@ -523,6 +734,30 @@ export default function Financeiro() {
     (acc, r) => ({ receita: acc.receita + r.receita, despesa: acc.despesa + r.despesa, resultado: acc.resultado + r.resultado }),
     { receita: 0, despesa: 0, resultado: 0 },
   );
+
+  // ── Resumo executivo (insights derivados dos dados já carregados) ──
+  const empresaSel = empresas.find(e => e.codigo === filtro);
+  const mesAnteriorFechado = mesesFechados[mesesFechados.length - 2];
+  const piorEmpresa = (!filtro && (comparativo.data?.length ?? 0) > 1)
+    ? [...(comparativo.data ?? [])].sort((a, b) => b.inadimplencia_pct - a.inadimplencia_pct)[0]
+    : undefined;
+  const resumoInsights = gerarResumoExecutivo({
+    escopo: empresaSel ? `a ${empresaSel.nome}` : 'o grupo',
+    mesFechado: mesFechado
+      ? { rotulo: mesFechado.rotulo, receita: mesFechado.receita, despesa: mesFechado.despesa, resultado: mesFechado.resultado }
+      : undefined,
+    mesAnterior: mesAnteriorFechado ? { resultado: mesAnteriorFechado.resultado } : undefined,
+    inadimplencia: inadimplencia.data
+      ? { percentual: inadimplencia.data.percentual, valor_vencido: inadimplencia.data.valor_vencido }
+      : undefined,
+    aging90: (aging.data ?? []).find(f => f.faixa === '90+ dias')?.valor,
+    prazos: prazos.data ? { pmr: prazos.data.pmr_dias, pmp: prazos.data.pmp_dias } : undefined,
+    fluxoNegativas: (fluxoSemanal.data ?? []).filter(f => f.saldo < 0).map(f => ({ rotulo: f.rotulo, saldo: f.saldo })),
+    piorEmpresa: piorEmpresa && piorEmpresa.inadimplencia_pct > 0.3
+      ? { nome: piorEmpresa.empresa_nome, pmr: piorEmpresa.pmr_dias, inadimplencia: piorEmpresa.inadimplencia_pct }
+      : undefined,
+    topDevedor: topDevedores.data?.[0],
+  });
 
   if (isLoading) return (
     <div className="space-y-4">
@@ -643,6 +878,9 @@ export default function Financeiro() {
         </div>
       </div>
 
+      {/* ── Resumo executivo ── */}
+      <ResumoExecutivo insights={resumoInsights} isLoading={resultadoMensal.isLoading || inadimplencia.isLoading || prazos.isLoading} />
+
       {/* ── Resultado gerencial (dá lucro?) ── */}
       <div className="space-y-3">
         <div>
@@ -741,6 +979,28 @@ export default function Financeiro() {
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      {/* ── DRE Gerencial (Lucro Bruto) ── */}
+      <div className="bg-card border border-border/60 rounded-lg p-4">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <h3 className="text-sm font-semibold">
+            DRE Gerencial{dreMes ? ` — ${mesFechado?.rotulo}` : ''}
+          </h3>
+          <KpiInfo titulo="DRE Gerencial" info={KPI_INFO.dre} />
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Da receita bruta ao lucro bruto, depois de impostos e custo das mercadorias. Vai até o Lucro Bruto (o lucro líquido exigiria a contabilidade fechada).
+        </p>
+        {dre.isLoading ? (
+          <Skeleton className="h-56 rounded-lg" />
+        ) : dreMes && dreMes.receita_bruta > 0 ? (
+          <DreCascata d={dreMes} />
+        ) : (
+          <p className="text-center text-sm text-muted-foreground py-8">
+            Sem dados de DRE no mês selecionado — faltam faturamento e/ou CMV sincronizados do Senior XT.
+          </p>
+        )}
       </div>
 
       {/* ── Fluxo de caixa projetado ── */}

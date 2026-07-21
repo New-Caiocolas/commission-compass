@@ -14,6 +14,7 @@ import { callPorta, loadMetricsConfig, type MetricsConfig } from "./_shared/soap
 import {
   findRecordArray,
   findValueByKeyPattern,
+  mapCmvRecord,
   mapFaturamentoRecord,
   mapRecord,
   parseSoapXml,
@@ -121,6 +122,8 @@ async function syncFaturamento(
     mes: number;
     valor_total: number;
     qtd_notas: number;
+    impostos: number;
+    deducoes: number;
   }>();
 
   for (const r of registros) {
@@ -139,15 +142,22 @@ async function syncFaturamento(
       mes: mapped.mes,
       valor_total: 0,
       qtd_notas: 0,
+      impostos: 0,
+      deducoes: 0,
     };
     acc.valor_total += mapped.valor_total;
     acc.qtd_notas += mapped.qtd_notas;
+    acc.impostos += mapped.impostos;
+    acc.deducoes += mapped.deducoes;
     porMes.set(chave, acc);
   }
 
+  const cent = (n: number) => Math.round(n * 100) / 100;
   const rows = [...porMes.values()].map((r) => ({
     ...r,
-    valor_total: Math.round(r.valor_total * 100) / 100,
+    valor_total: cent(r.valor_total),
+    impostos: cent(r.impostos),
+    deducoes: cent(r.deducoes),
     synced_at: syncedAt,
   }));
 
@@ -161,7 +171,49 @@ async function syncFaturamento(
   return { recebidos: registros.length, gravados: rows.length, sem_empresa: semEmpresa };
 }
 
-const ETAPAS = ["contaspagar", "contasreceber", "faturamento"] as const;
+/** CMV: custo das saídas de venda (E210MVP), agregado por empresa/mês. */
+async function syncCmv(
+  supabase: Supabase,
+  cfg: MetricsConfig,
+  empresaIdByCodEmp: Map<number, string>,
+) {
+  const registros = await fetchRegistros(cfg, "ConsultarCMV");
+  const syncedAt = new Date().toISOString();
+  let semEmpresa = 0;
+
+  const porMes = new Map<string, { empresa_id: string; ano: number; mes: number; valor: number }>();
+  for (const r of registros) {
+    const mapped = mapCmvRecord(r);
+    const empresaId = mapped.senior_codigo_empresa != null
+      ? empresaIdByCodEmp.get(mapped.senior_codigo_empresa)
+      : undefined;
+    if (!empresaId || !mapped.ano || !mapped.mes) {
+      semEmpresa++;
+      continue;
+    }
+    const chave = `${empresaId}|${mapped.ano}|${mapped.mes}`;
+    const acc = porMes.get(chave) ?? { empresa_id: empresaId, ano: mapped.ano, mes: mapped.mes, valor: 0 };
+    acc.valor += mapped.valor;
+    porMes.set(chave, acc);
+  }
+
+  const rows = [...porMes.values()].map((r) => ({
+    ...r,
+    valor: Math.round(r.valor * 100) / 100,
+    synced_at: syncedAt,
+  }));
+
+  if (rows.length > 0) {
+    const { error } = await supabase
+      .from("financeiro_cmv")
+      .upsert(rows, { onConflict: "empresa_id,ano,mes" });
+    if (error) throw error;
+  }
+
+  return { recebidos: registros.length, gravados: rows.length, sem_empresa: semEmpresa };
+}
+
+const ETAPAS = ["contaspagar", "contasreceber", "faturamento", "cmv"] as const;
 type Etapa = (typeof ETAPAS)[number];
 
 async function runEtapa(
@@ -177,6 +229,8 @@ async function runEtapa(
       return await syncTitulos(supabase, cfg, "ConsultarContasReceber", "financeiro_contas_receber", "cliente", empresaIdByCodEmp);
     case "faturamento":
       return await syncFaturamento(supabase, cfg, empresaIdByCodEmp);
+    case "cmv":
+      return await syncCmv(supabase, cfg, empresaIdByCodEmp);
   }
 }
 
