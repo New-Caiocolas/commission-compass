@@ -84,6 +84,8 @@ async function syncTitulos(
       data_pagamento: mapped.data_pagamento,
       status: mapped.status,
       centro_custo: mapped.centro_custo,
+      // senior_ctafin só existe na tabela de contas a pagar (classificação da DRE)
+      ...(tabela === "financeiro_contas_pagar" ? { senior_ctafin: mapped.senior_ctafin } : {}),
       synced_at: syncedAt,
     });
   }

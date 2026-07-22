@@ -182,7 +182,10 @@ function useResultadoMensal(empresaCodigo: string | null) {
 interface DreMes {
   ano: number; mes: number;
   receita_bruta: number; impostos: number; deducoes: number;
-  receita_liquida: number; cmv: number; lucro_bruto: number; margem_bruta: number;
+  receita_liquida: number; cmv: number; lucro_bruto: number;
+  desp_pessoal: number; desp_operacional: number; desp_financeira: number; desp_tributaria: number;
+  despesas: number; resultado_liquido: number;
+  margem_bruta: number; margem_liquida: number;
 }
 
 function useDre(empresaCodigo: string | null) {
@@ -202,7 +205,14 @@ function useDre(empresaCodigo: string | null) {
         receita_liquida: Number(r.receita_liquida) || 0,
         cmv: Number(r.cmv) || 0,
         lucro_bruto: Number(r.lucro_bruto) || 0,
+        desp_pessoal: Number(r.desp_pessoal) || 0,
+        desp_operacional: Number(r.desp_operacional) || 0,
+        desp_financeira: Number(r.desp_financeira) || 0,
+        desp_tributaria: Number(r.desp_tributaria) || 0,
+        despesas: Number(r.despesas) || 0,
+        resultado_liquido: Number(r.resultado_liquido) || 0,
         margem_bruta: Number(r.margem_bruta) || 0,
+        margem_liquida: Number(r.margem_liquida) || 0,
       }));
     },
     staleTime: 1000 * 60 * 2,
@@ -454,8 +464,8 @@ const KPI_INFO: Record<string, KpiInfoTexto> = {
     decisao: 'Onde está concentrado o compromisso de caixa. Use para priorizar negociação de prazo/desconto com os maiores e planejar os desembolsos das próximas semanas.',
   },
   dre: {
-    oQueE: 'DRE gerencial: Receita Bruta − impostos − deduções = Receita Líquida − CMV (custo das mercadorias vendidas) = Lucro Bruto. Vai até o Lucro Bruto (o lucro líquido exigiria a contabilidade fechada, que não é feita no Senior).',
-    decisao: 'A margem bruta real, depois de impostos e custo do produto — o quanto sobra para pagar as despesas operacionais. Margem caindo mês a mês = repensar preços, mix de produtos ou negociação de compra. É o indicador de saúde do modelo de negócio.',
+    oQueE: 'DRE gerencial (regime de competência): Receita Bruta − impostos − deduções = Receita Líquida − CMV (compra de mercadoria) = Lucro Bruto − despesas operacionais/financeiras/tributárias = Resultado Líquido. Custo e despesas vêm da classificação financeira dos títulos (plano financeiro do Senior).',
+    decisao: 'O retrato completo do resultado: margem bruta (eficiência de compra/venda) e margem líquida (o que sobra no fim). Margem líquida negativa por meses seguidos = o negócio está queimando capital. É o indicador definitivo de "a empresa dá lucro?".',
   },
 };
 
@@ -618,8 +628,13 @@ function DreCascata({ d }: { d: DreMes }) {
     { rot: '(−) Impostos s/ venda', val: -d.impostos, tipo: 'menos' },
     { rot: '(−) Deduções e devoluções', val: -d.deducoes, tipo: 'menos' },
     { rot: '(=) Receita Líquida', val: d.receita_liquida, tipo: 'subtotal' },
-    { rot: '(−) CMV (custo das vendas)', val: -d.cmv, tipo: 'menos' },
-    { rot: '(=) Lucro Bruto', val: d.lucro_bruto, tipo: 'resultado' },
+    { rot: '(−) CMV (custo das mercadorias)', val: -d.cmv, tipo: 'menos' },
+    { rot: '(=) Lucro Bruto', val: d.lucro_bruto, tipo: 'subtotal' },
+    { rot: '(−) Despesas com Pessoal', val: -d.desp_pessoal, tipo: 'menos' },
+    { rot: '(−) Despesas Operacionais', val: -d.desp_operacional, tipo: 'menos' },
+    { rot: '(−) Despesas Financeiras', val: -d.desp_financeira, tipo: 'menos' },
+    { rot: '(−) Impostos sobre o Lucro', val: -d.desp_tributaria, tipo: 'menos' },
+    { rot: '(=) Resultado Líquido', val: d.resultado_liquido, tipo: 'resultado' },
   ];
   const base = d.receita_bruta || 1;
   return (
@@ -650,7 +665,13 @@ function DreCascata({ d }: { d: DreMes }) {
         })}
         <tr>
           <td className="pt-2 font-sans text-xs text-muted-foreground">Margem bruta (sobre receita líquida)</td>
-          <td className="pt-2 text-right font-bold text-primary" colSpan={2}>{formatPercent(d.margem_bruta)}</td>
+          <td className="pt-2 text-right font-semibold text-foreground" colSpan={2}>{formatPercent(d.margem_bruta)}</td>
+        </tr>
+        <tr>
+          <td className="font-sans text-xs text-muted-foreground">Margem líquida (sobre receita líquida)</td>
+          <td className={`text-right font-bold ${d.margem_liquida >= 0 ? 'text-emerald-400' : 'text-destructive'}`} colSpan={2}>
+            {formatPercent(d.margem_liquida)}
+          </td>
         </tr>
       </tbody>
     </table>
@@ -702,6 +723,7 @@ export default function Financeiro() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const [semanasFluxo, setSemanasFluxo] = useState(8);
+  const [dreMesSelecionado, setDreMesSelecionado] = useState<string | null>(null);
 
   const { liquidez, prazos, inadimplencia, aging } = useKpiFinanceiro(filtro);
   const resultadoMensal = useResultadoMensal(filtro);
@@ -724,9 +746,15 @@ export default function Financeiro() {
   // Último mês FECHADO dentro do período (o mês corrente aparece no gráfico como parcial)
   const mesesFechados = resultadoPeriodo.filter(r => !r.parcial);
   const mesFechado = mesesFechados[mesesFechados.length - 1];
-  const dreMes = mesFechado
-    ? (dre.data ?? []).find(d => d.ano === mesFechado.ano && d.mes === mesFechado.mes)
-    : undefined;
+  // DRE do período selecionado (mesmo recorte do resultado), com rótulo por mês.
+  const dreDoPeriodo = (dre.data ?? [])
+    .filter(d => {
+      const chave = chaveMes(d.ano, d.mes);
+      return chave >= rangeIni && chave <= rangeFim;
+    })
+    .map(d => ({ ...d, chave: `${d.ano}-${d.mes}`, rotulo: `${MESES[d.mes - 1]}/${String(d.ano).slice(2)}` }));
+  const dreComDados = dreDoPeriodo.filter(d => d.receita_bruta > 0 || d.cmv > 0 || d.despesas > 0);
+  const dreMes = dreComDados.find(d => d.chave === dreMesSelecionado) ?? dreComDados[dreComDados.length - 1];
   const margem = mesFechado && mesFechado.receita > 0 ? mesFechado.resultado / mesFechado.receita : null;
 
   // Acumulado dos meses fechados do período selecionado
@@ -981,25 +1009,71 @@ export default function Financeiro() {
         </div>
       </div>
 
-      {/* ── DRE Gerencial (Lucro Bruto) ── */}
-      <div className="bg-card border border-border/60 rounded-lg p-4">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <h3 className="text-sm font-semibold">
-            DRE Gerencial{dreMes ? ` — ${mesFechado?.rotulo}` : ''}
-          </h3>
-          <KpiInfo titulo="DRE Gerencial" info={KPI_INFO.dre} />
+      {/* ── DRE Gerencial (até Resultado Líquido) ── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold flex items-center gap-2">
+              DRE Gerencial
+              <KpiInfo titulo="DRE Gerencial" info={KPI_INFO.dre} />
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Da receita bruta ao resultado líquido — impostos, custo das mercadorias e despesas classificadas. Visão gerencial por competência.
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          Da receita bruta ao lucro bruto, depois de impostos e custo das mercadorias. Vai até o Lucro Bruto (o lucro líquido exigiria a contabilidade fechada).
-        </p>
-        {dre.isLoading ? (
-          <Skeleton className="h-56 rounded-lg" />
-        ) : dreMes && dreMes.receita_bruta > 0 ? (
-          <DreCascata d={dreMes} />
-        ) : (
-          <p className="text-center text-sm text-muted-foreground py-8">
-            Sem dados de DRE no mês selecionado — faltam faturamento e/ou CMV sincronizados do Senior XT.
-          </p>
+
+        {/* Resultado líquido por mês (evolução) */}
+        <div className="bg-card border border-border/60 rounded-lg p-4">
+          <h3 className="text-sm font-semibold mb-1">Resultado Líquido por mês</h3>
+          <p className="text-xs text-muted-foreground mb-4">Clique numa barra para ver a DRE completa daquele mês.</p>
+          {dre.isLoading ? (
+            <Skeleton className="h-56 rounded-lg" />
+          ) : dreComDados.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-8">Sem dados de DRE no período — sincronize o Senior XT (faturamento, CMV e ctafin).</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart
+                data={dreComDados}
+                onClick={(e) => { const p = e?.activePayload?.[0]?.payload; if (p) setDreMesSelecionado(p.chave); }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="rotulo" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tickFormatter={compactBRL} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={72} />
+                <Tooltip content={<FinTooltip />} cursor={{ fill: 'hsl(var(--muted-foreground) / 0.08)' }} />
+                <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                <Bar name="Resultado Líquido" dataKey="resultado_liquido" radius={[4, 4, 0, 0]} maxBarSize={40} className="cursor-pointer">
+                  {dreComDados.map(d => (
+                    <Cell
+                      key={d.chave}
+                      fill={d.resultado_liquido >= 0 ? 'hsl(var(--fin-in))' : 'hsl(var(--fin-out))'}
+                      fillOpacity={dreMes && d.chave === dreMes.chave ? 1 : 0.55}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Cascata do mês selecionado */}
+        {dreMes && dreMes.receita_bruta > 0 && (
+          <div className="bg-card border border-border/60 rounded-lg p-4">
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <h3 className="text-sm font-semibold">Cascata — {dreMes.rotulo}</h3>
+              <Select value={dreMes.chave} onValueChange={setDreMesSelecionado}>
+                <SelectTrigger className="w-[150px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[...dreComDados].reverse().map(d => (
+                    <SelectItem key={d.chave} value={d.chave}>{d.rotulo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DreCascata d={dreMes} />
+          </div>
         )}
       </div>
 

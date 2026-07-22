@@ -75,6 +75,8 @@ export interface MappedTitulo {
   data_pagamento: string | null;
   status: string | null;
   centro_custo: string | null;
+  /** conta financeira (E091PLF): 0 = compra de mercadoria (CMV); >0 = despesa classificada. */
+  senior_ctafin: number;
   raw_payload: Record<string, unknown>;
 }
 
@@ -176,6 +178,7 @@ export function mapRecord(record: Record<string, unknown>): MappedTitulo {
     data_pagamento: parseBrDate(fieldValue(record, "dataPagamento")),
     status: fieldValue(record, "situacao"),
     centro_custo: fieldValue(record, "centroCusto"),
+    senior_ctafin: Number(fieldValue(record, "ctafin")) || 0,
     raw_payload: record,
   };
 }
