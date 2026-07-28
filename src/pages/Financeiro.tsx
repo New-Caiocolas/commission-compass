@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ComposedChart, Line, Legend, ReferenceLine, Cell,
+  ComposedChart, Line, Legend, ReferenceLine, Cell, PieChart, Pie,
 } from 'recharts';
 import { Landmark, TrendingUp, TrendingDown, Clock, AlertTriangle, RefreshCw, Scale, Info, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -24,6 +24,15 @@ interface Inadimplencia { valor_vencido: number; valor_total_aberto: number; per
 interface AgingFaixa { faixa: string; valor: number; quantidade: number }
 
 const ORDEM_FAIXAS = ['A vencer', '0-30 dias', '31-60 dias', '61-90 dias', '90+ dias'];
+
+/** Rampa de severidade do aging: em dia (verde) → atraso crítico (vermelho). */
+const COR_AGING: Record<string, string> = {
+  'A vencer': 'hsl(var(--fin-in))',
+  '0-30 dias': 'hsl(48 90% 50%)',
+  '31-60 dias': 'hsl(32 92% 52%)',
+  '61-90 dias': 'hsl(18 88% 52%)',
+  '90+ dias': 'hsl(var(--fin-out))',
+};
 
 function useEmpresas() {
   return useQuery({
@@ -280,13 +289,17 @@ function useFluxoSemanal(empresaCodigo: string | null, semanas: number) {
         empresa_codigo: empresaCodigo, semanas,
       });
       if (error) throw error;
+      let acumulado = 0;
       return (data as FluxoSemana[]).map(f => {
         const d = new Date(f.semana + 'T00:00:00');
+        const saldo = Number(f.saldo) || 0;
+        acumulado += saldo;
         return {
           ...f,
           entradas: Number(f.entradas) || 0,
           saidas: Number(f.saidas) || 0,
-          saldo: Number(f.saldo) || 0,
+          saldo,
+          acumulado,
           rotulo: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`,
         };
       });
@@ -463,6 +476,14 @@ const KPI_INFO: Record<string, KpiInfoTexto> = {
     oQueE: 'Os 10 fornecedores com maior valor de títulos a pagar em aberto.',
     decisao: 'Onde está concentrado o compromisso de caixa. Use para priorizar negociação de prazo/desconto com os maiores e planejar os desembolsos das próximas semanas.',
   },
+  composicaoDespesas: {
+    oQueE: 'As despesas do mês divididas por categoria: pessoal, operacional, financeira e impostos sobre o lucro. Exclui compra de mercadoria (que é CMV) e itens que não são despesa (empréstimos, adiantamentos, distribuição de lucros).',
+    decisao: 'Mostra onde cortar tem mais efeito. Se pessoal domina, a alavanca é produtividade/quadro; se operacional pesa, revisar contratos e fornecedores de serviço; se financeira cresce, o custo da dívida está corroendo o resultado.',
+  },
+  comparativoNormalizado: {
+    oQueE: 'Os indicadores das 3 empresas em percentual (não em reais), para comparar eficiência independente do porte de cada uma.',
+    decisao: 'Em valores absolutos a maior empresa sempre parece melhor. Em percentual dá para ver quem realmente opera melhor — e replicar a prática da mais eficiente nas outras.',
+  },
   dre: {
     oQueE: 'DRE gerencial (regime de competência): Receita Bruta − impostos − deduções = Receita Líquida − CMV (compra de mercadoria) = Lucro Bruto − despesas operacionais/financeiras/tributárias = Resultado Líquido. Custo e despesas vêm da classificação financeira dos títulos (plano financeiro do Senior).',
     decisao: 'O retrato completo do resultado: margem bruta (eficiência de compra/venda) e margem líquida (o que sobra no fim). Margem líquida negativa por meses seguidos = o negócio está queimando capital. É o indicador definitivo de "a empresa dá lucro?".',
@@ -600,11 +621,11 @@ function ResumoExecutivo({ insights, isLoading }: { insights: Insight[]; isLoadi
   if (isLoading) return <Skeleton className="h-28 rounded-lg" />;
   if (insights.length === 0) return null;
   return (
-    <div className="bg-primary/[0.06] border border-primary/25 rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-3">
+    <div className="bg-primary/[0.05] border border-primary/20 rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-3.5">
         <Sparkles className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold">Resumo executivo</h2>
-        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">gerado dos dados atuais</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-[0.12em]">gerado dos dados atuais</span>
       </div>
       <ul className="space-y-2">
         {insights.map((i, idx) => {
@@ -621,7 +642,113 @@ function ResumoExecutivo({ insights, isLoading }: { insights: Insight[]; isLoadi
   );
 }
 
-/** DRE em cascata (Receita Bruta → Líquida → Lucro Bruto) para um mês. */
+/** Waterfall da DRE: mostra visualmente como a Receita Líquida vira Resultado. */
+function DreWaterfall({ d }: { d: DreMes }) {
+  const lb = d.lucro_bruto;
+  const res = d.resultado_liquido;
+  // cada passo: base (transparente) + valor (colorido) empilhados
+  const steps = [
+    { name: 'Rec. Líquida', base: 0, val: d.receita_liquida, tom: 'total' as const },
+    { name: '(−) CMV', base: lb, val: d.cmv, tom: 'neg' as const },
+    { name: '(−) Despesas', base: res >= 0 ? res : lb - d.despesas, val: d.despesas, tom: 'neg' as const },
+    { name: 'Resultado', base: res >= 0 ? 0 : res, val: Math.abs(res), tom: (res >= 0 ? 'total' : 'perda') as const },
+  ];
+  const cor = (tom: string) =>
+    tom === 'neg' ? 'hsl(var(--fin-out))' : tom === 'perda' ? 'hsl(var(--destructive))' : 'hsl(var(--fin-in))';
+  return (
+    <ResponsiveContainer width="100%" height={230}>
+      <BarChart data={steps} margin={{ top: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+        <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+        <YAxis tickFormatter={compactBRL} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={72} />
+        <Tooltip
+          cursor={{ fill: 'hsl(var(--muted-foreground) / 0.08)' }}
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const p = payload.find(x => x.dataKey === 'val')?.payload as (typeof steps)[0];
+            if (!p) return null;
+            return (
+              <div className="bg-card border border-border rounded-lg p-3 text-xs shadow-xl">
+                <p className="font-semibold text-foreground mb-1">{p.name}</p>
+                <p className="font-mono font-semibold" style={{ color: cor(p.tom) }}>
+                  {p.tom === 'neg' ? '− ' : ''}{formatCurrency(p.val)}
+                </p>
+              </div>
+            );
+          }}
+        />
+        <Bar dataKey="base" stackId="wf" fill="transparent" />
+        <Bar dataKey="val" stackId="wf" radius={[3, 3, 0, 0]} maxBarSize={64}>
+          {steps.map((s, i) => <Cell key={i} fill={cor(s.tom)} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Cores das categorias de despesa (identidade fixa, nunca por ranking). */
+const COR_DESPESA = ['hsl(217 91% 60%)', 'hsl(270 70% 62%)', 'hsl(32 92% 52%)', 'hsl(340 75% 58%)'];
+
+/**
+ * Cor por EMPRESA (identidade fixa — não muda com o ranking). Hues bem separadas
+ * (azul / âmbar é o par mais seguro para daltonismo); a legenda e os rótulos de
+ * valor garantem que a identidade nunca dependa só da cor.
+ */
+const COR_EMPRESA = ['hsl(217 91% 60%)', 'hsl(32 92% 52%)', 'hsl(270 70% 62%)'];
+
+/** Composição das despesas do mês: onde o dinheiro é gasto. */
+function DespesasDonut({ d }: { d: DreMes }) {
+  const dados = [
+    { nome: 'Pessoal', valor: d.desp_pessoal },
+    { nome: 'Operacional', valor: d.desp_operacional },
+    { nome: 'Financeira', valor: d.desp_financeira },
+    { nome: 'Impostos s/ Lucro', valor: d.desp_tributaria },
+  ].filter(x => x.valor > 0);
+  const total = dados.reduce((s, x) => s + x.valor, 0);
+  if (total === 0) return <p className="text-center text-sm text-muted-foreground py-8">Sem despesas classificadas neste mês.</p>;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center gap-4">
+      <ResponsiveContainer width="100%" height={190} className="max-w-[220px]">
+        <PieChart>
+          <Pie data={dados} dataKey="valor" nameKey="nome" innerRadius={48} outerRadius={78} paddingAngle={2} stroke="hsl(var(--card))" strokeWidth={2}>
+            {dados.map((x, i) => <Cell key={x.nome} fill={COR_DESPESA[i % COR_DESPESA.length]} />)}
+          </Pie>
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0].payload as { nome: string; valor: number };
+              return (
+                <div className="bg-card border border-border rounded-lg p-3 text-xs shadow-xl">
+                  <p className="font-semibold text-foreground mb-1">{p.nome}</p>
+                  <p className="font-mono font-semibold text-foreground">{formatCurrency(p.valor)}</p>
+                  <p className="text-muted-foreground">{formatPercent(p.valor / total)} das despesas</p>
+                </div>
+              );
+            }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <ul className="flex-1 w-full space-y-1.5 text-sm">
+        {dados.map((x, i) => (
+          <li key={x.nome} className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: COR_DESPESA[i % COR_DESPESA.length] }} />
+            <span className="text-muted-foreground flex-1">{x.nome}</span>
+            <span className="font-mono tabular-nums text-foreground">{formatCurrency(x.valor)}</span>
+            <span className="font-mono tabular-nums text-xs text-muted-foreground w-12 text-right">{formatPercent(x.valor / total)}</span>
+          </li>
+        ))}
+        <li className="flex items-center gap-2 pt-1.5 border-t border-border/60 font-semibold">
+          <span className="flex-1">Total</span>
+          <span className="font-mono tabular-nums">{formatCurrency(total)}</span>
+          <span className="w-12" />
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+/** DRE em cascata (tabela precisa, complementa o waterfall). */
 function DreCascata({ d }: { d: DreMes }) {
   const linhas: { rot: string; val: number; tipo: 'base' | 'menos' | 'subtotal' | 'resultado' }[] = [
     { rot: 'Receita Bruta', val: d.receita_bruta, tipo: 'base' },
@@ -678,16 +805,96 @@ function DreCascata({ d }: { d: DreMes }) {
   );
 }
 
-function StatCard({ icon: Icon, label, value, sub, color = 'default', info }: {
+// ── Blocos de layout: dão hierarquia e ritmo consistentes à página ───────────
+
+/** Divisória de capítulo: título discreto em versalete + régua fina. */
+function Secao({ titulo, descricao, acao, children }: {
+  titulo: string; descricao?: string; acao?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="flex items-end justify-between gap-3 border-b border-border/50 pb-2">
+        <div>
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{titulo}</h2>
+          {descricao && <p className="text-xs text-muted-foreground/80 mt-1 max-w-2xl">{descricao}</p>}
+        </div>
+        {acao && <div className="shrink-0">{acao}</div>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Painel padrão: um card com título, ⓘ opcional e descrição. */
+function Painel({ titulo, descricao, info, acao, className = '', children }: {
+  titulo?: string; descricao?: string; info?: KpiInfoTexto; acao?: React.ReactNode;
+  className?: string; children: React.ReactNode;
+}) {
+  return (
+    <div className={`bg-card border border-border/50 rounded-xl p-4 sm:p-5 shadow-sm ${className}`}>
+      {(titulo || acao) && (
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            {titulo && (
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-semibold text-foreground truncate">{titulo}</h3>
+                {info && <KpiInfo titulo={titulo} info={info} />}
+              </div>
+            )}
+            {descricao && <p className="text-xs text-muted-foreground mt-1 max-w-prose">{descricao}</p>}
+          </div>
+          {acao && <div className="shrink-0">{acao}</div>}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Sparkline: mini-tendência dos últimos meses. SVG puro (leve — são vários por
+ * tela); o último ponto é destacado, e a cor segue a direção da série.
+ */
+function Sparkline({ dados, className = '' }: { dados: number[]; className?: string }) {
+  if (dados.length < 2) return null;
+  const W = 64, H = 22, P = 2;
+  const min = Math.min(...dados, 0);
+  const max = Math.max(...dados, 0);
+  const span = max - min || 1;
+  const x = (i: number) => P + (i * (W - P * 2)) / (dados.length - 1);
+  const y = (v: number) => H - P - ((v - min) / span) * (H - P * 2);
+  const linha = dados.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const area = `${linha} L${x(dados.length - 1).toFixed(1)},${H - P} L${x(0).toFixed(1)},${H - P} Z`;
+  const subindo = dados[dados.length - 1] >= dados[0];
+  const cor = subindo ? 'hsl(var(--fin-in))' : 'hsl(var(--fin-out))';
+  const id = `sp${Math.round(dados[0] ?? 0)}-${dados.length}`;
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={cor} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={cor} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${id})`} />
+      <path d={linha} fill="none" stroke={cor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={x(dados.length - 1)} cy={y(dados[dados.length - 1])} r="2" fill={cor} />
+    </svg>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, sub, color = 'default', info, spark }: {
   icon: React.ElementType; label: string; value: string; sub?: string;
   color?: 'default' | 'positive' | 'negative' | 'warning';
   info?: KpiInfoTexto;
+  /** Série dos últimos meses para a mini-tendência ao lado do número. */
+  spark?: number[];
 }) {
   const colors = { default: 'text-foreground', positive: 'text-emerald-400', negative: 'text-destructive', warning: 'text-yellow-400' };
   return (
-    <div className="bg-card border border-border/60 rounded-lg p-4 flex flex-col gap-2">
+    <div className="bg-card border border-border/50 rounded-xl p-4 shadow-sm flex flex-col gap-2 transition-colors hover:border-border">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground tracking-widest uppercase font-medium">{label}</span>
+        <span className="text-[11px] text-muted-foreground tracking-[0.1em] uppercase font-medium leading-tight">{label}</span>
         <div className="flex items-center gap-1.5 shrink-0">
           {info && <KpiInfo titulo={label} info={info} />}
           <div className="bg-secondary rounded-md p-1.5">
@@ -695,7 +902,10 @@ function StatCard({ icon: Icon, label, value, sub, color = 'default', info }: {
           </div>
         </div>
       </div>
-      <p className={`text-2xl font-bold tabular-nums font-mono ${colors[color]}`}>{value}</p>
+      <div className="flex items-end justify-between gap-2">
+        <p className={`text-[1.35rem] leading-tight font-bold tabular-nums font-mono tracking-tight ${colors[color]}`}>{value}</p>
+        {spark && spark.length > 1 && <Sparkline dados={spark} className="shrink-0 mb-0.5" />}
+      </div>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
@@ -757,6 +967,32 @@ export default function Financeiro() {
   const dreMes = dreComDados.find(d => d.chave === dreMesSelecionado) ?? dreComDados[dreComDados.length - 1];
   const margem = mesFechado && mesFechado.receita > 0 ? mesFechado.resultado / mesFechado.receita : null;
 
+  // Comparativo em % (uma linha por indicador, uma barra por empresa) — o porte
+  // não distorce: margem alta é bom; despesa/receita e inadimplência, quanto menor melhor.
+  const dadosNormalizados = [
+    { indicador: 'Margem do mês' },
+    { indicador: 'Despesa / Receita' },
+    { indicador: 'Inadimplência' },
+  ].map(linha => {
+    const row: Record<string, string | number> = { indicador: linha.indicador };
+    for (const c of comparativo.data ?? []) {
+      const pct =
+        linha.indicador === 'Margem do mês'
+          ? (c.receita_mes > 0 ? (c.resultado_mes / c.receita_mes) * 100 : 0)
+          : linha.indicador === 'Despesa / Receita'
+            ? (c.receita_mes > 0 ? (c.despesa_mes / c.receita_mes) * 100 : 0)
+            : c.inadimplencia_pct * 100;
+      row[c.empresa_codigo] = Math.round(pct * 10) / 10;
+    }
+    return row;
+  });
+
+  // Séries dos últimos meses fechados para as mini-tendências (sparklines)
+  const ultimos = mesesFechados.slice(-12);
+  const sparkReceita = ultimos.map(m => m.receita);
+  const sparkDespesa = ultimos.map(m => m.despesa);
+  const sparkResultado = ultimos.map(m => m.resultado);
+
   // Acumulado dos meses fechados do período selecionado
   const acumulado = mesesFechados.reduce(
     (acc, r) => ({ receita: acc.receita + r.receita, despesa: acc.despesa + r.despesa, resultado: acc.resultado + r.resultado }),
@@ -788,32 +1024,33 @@ export default function Financeiro() {
   });
 
   if (isLoading) return (
-    <div className="space-y-4">
-      <Skeleton className="h-16 w-full rounded-lg" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-lg" />)}
+    <div className="space-y-8">
+      <Skeleton className="h-16 w-full rounded-xl" />
+      <Skeleton className="h-28 w-full rounded-xl" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
       </div>
-      <Skeleton className="h-72 rounded-lg" />
+      <Skeleton className="h-80 rounded-xl" />
     </div>
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-4">
 
       {/* ── Header ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/15 rounded-lg p-2.5 border border-primary/30">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="bg-primary/10 rounded-xl p-3 border border-primary/25">
             <Landmark className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">Financeiro</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              KPIs financeiros consolidados do grupo, sincronizados do Senior XT
+            <h1 className="text-2xl font-bold tracking-tight">Financeiro</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Indicadores do grupo Ello, sincronizados do Senior XT
             </p>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end gap-1.5">
           <Button
             onClick={() => sync.mutate()}
             disabled={sync.isPending}
@@ -824,18 +1061,18 @@ export default function Financeiro() {
             <RefreshCw className={`h-4 w-4 ${sync.isPending ? 'animate-spin' : ''}`} />
             {sync.isPending ? 'Sincronizando…' : 'Sincronizar agora'}
           </Button>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground text-right">
             {sync.isPending
-              ? 'Buscando títulos no Senior XT — pode levar ~1 min'
+              ? 'Buscando dados no Senior XT — pode levar ~1 min'
               : ultimaSync.data
-                ? `Última sync: ${new Date(ultimaSync.data.executado_em).toLocaleString('pt-BR')} (${ultimaSync.data.registros?.toLocaleString('pt-BR') ?? 0} títulos)`
+                ? `Atualizado em ${new Date(ultimaSync.data.executado_em).toLocaleString('pt-BR')}`
                 : 'Nenhuma sincronização registrada'}
           </span>
         </div>
-      </div>
+      </header>
 
       {/* ── Filtros ── */}
-      <div className="bg-card border border-border/60 rounded-lg p-4 flex flex-wrap gap-4 items-end">
+      <div className="bg-card/60 border border-border/50 rounded-xl p-4 flex flex-wrap gap-4 items-end">
         <div className="flex flex-col gap-1 min-w-[220px]">
           <label className="text-xs text-muted-foreground font-medium">Empresa</label>
           <Select value={empresaCodigo} onValueChange={setEmpresaCodigo}>
@@ -909,17 +1146,64 @@ export default function Financeiro() {
       {/* ── Resumo executivo ── */}
       <ResumoExecutivo insights={resumoInsights} isLoading={resultadoMensal.isLoading || inadimplencia.isLoading || prazos.isLoading} />
 
-      {/* ── Resultado gerencial (dá lucro?) ── */}
-      <div className="space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold">
-            Resultado gerencial{mesFechado ? ` — ${mesFechado.rotulo}` : ''}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Receita faturada − despesas pagas. Visão gerencial de caixa — não é o lucro contábil (sem CMV, impostos e depreciação).
-          </p>
+      {/* ── Posição financeira (o pulso) ── */}
+      <Secao
+        titulo="Posição financeira"
+        descricao="O que está em aberto hoje e a velocidade do ciclo de caixa."
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <StatCard
+            icon={TrendingDown}
+            label="A pagar (aberto)"
+            value={formatCurrency(liquidez.data?.total_a_pagar_aberto ?? 0)}
+            color="negative"
+            info={KPI_INFO.contasPagar}
+          />
+          <StatCard
+            icon={TrendingUp}
+            label="A receber (aberto)"
+            value={formatCurrency(liquidez.data?.total_a_receber_aberto ?? 0)}
+            color="positive"
+            info={KPI_INFO.contasReceber}
+          />
+          <StatCard
+            icon={Landmark}
+            label="Saldo projetado"
+            value={formatCurrency(liquidez.data?.saldo_projetado ?? 0)}
+            sub="a receber − a pagar"
+            color={(liquidez.data?.saldo_projetado ?? 0) >= 0 ? 'positive' : 'negative'}
+            info={KPI_INFO.saldoProjetado}
+          />
+          <StatCard
+            icon={AlertTriangle}
+            label="Inadimplência"
+            value={formatPercent(inadimplencia.data?.percentual ?? 0)}
+            sub={`${compactBRL(inadimplencia.data?.valor_vencido ?? 0)} vencidos`}
+            color={(inadimplencia.data?.percentual ?? 0) > 0.1 ? 'negative' : 'default'}
+            info={KPI_INFO.inadimplencia}
+          />
+          <StatCard
+            icon={Clock}
+            label="PMR (recebimento)"
+            value={`${(prazos.data?.pmr_dias ?? 0).toFixed(0)} dias`}
+            sub="tempo até receber"
+            info={KPI_INFO.pmr}
+          />
+          <StatCard
+            icon={Clock}
+            label="PMP (pagamento)"
+            value={`${(prazos.data?.pmp_dias ?? 0).toFixed(0)} dias`}
+            sub="tempo até pagar"
+            info={KPI_INFO.pmp}
+          />
         </div>
+      </Secao>
 
+      {/* ── Resultado gerencial (dá lucro?) ── */}
+      <Secao
+        titulo="Resultado gerencial"
+        descricao="Receita faturada − despesas pagas. Visão de caixa; a DRE completa vem logo abaixo."
+      >
         {resultadoMensal.isLoading ? (
           <Skeleton className="h-24 rounded-lg" />
         ) : mesFechado ? (
@@ -930,6 +1214,7 @@ export default function Financeiro() {
               value={formatCurrency(mesFechado.receita)}
               color="positive"
               info={KPI_INFO.receitaMes}
+              spark={sparkReceita}
             />
             <StatCard
               icon={TrendingDown}
@@ -937,6 +1222,7 @@ export default function Financeiro() {
               value={formatCurrency(mesFechado.despesa)}
               color="negative"
               info={KPI_INFO.despesaMes}
+              spark={sparkDespesa}
             />
             <StatCard
               icon={Scale}
@@ -945,6 +1231,7 @@ export default function Financeiro() {
               sub={margem != null ? `margem de ${formatPercent(margem)} sobre a receita` : undefined}
               color={mesFechado.resultado >= 0 ? 'positive' : 'negative'}
               info={KPI_INFO.resultadoMes}
+              spark={sparkResultado}
             />
             <StatCard
               icon={Landmark}
@@ -961,17 +1248,13 @@ export default function Financeiro() {
           </p>
         )}
 
-        <div className="bg-card border border-border/60 rounded-lg p-4">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <h3 className="text-sm font-semibold">Receita × Despesa por mês</h3>
-            <KpiInfo titulo="Receita × Despesa por mês" info={KPI_INFO.graficoResultado} />
-          </div>
-          <p className="text-xs text-muted-foreground mb-4">
-            {resultadoPeriodo.length > 0
-              ? `${resultadoPeriodo[0].rotulo} a ${resultadoPeriodo[resultadoPeriodo.length - 1].rotulo}`
-              : 'Período selecionado'}
-            {resultadoPeriodo.some(r => r.parcial) ? ' · mês atual parcial em tom claro' : ''}. Linha = resultado do mês.
-          </p>
+        <Painel
+          titulo="Receita × Despesa por mês"
+          info={KPI_INFO.graficoResultado}
+          descricao={`${resultadoPeriodo.length > 0
+            ? `${resultadoPeriodo[0].rotulo} a ${resultadoPeriodo[resultadoPeriodo.length - 1].rotulo}`
+            : 'Período selecionado'}${resultadoPeriodo.some(r => r.parcial) ? ' · mês atual parcial em tom claro' : ''}. Linha = resultado do mês.`}
+        >
           {resultadoMensal.isLoading ? (
             <Skeleton className="h-72 rounded-lg" />
           ) : resultadoPeriodo.length === 0 ? (
@@ -1006,27 +1289,16 @@ export default function Financeiro() {
               </ComposedChart>
             </ResponsiveContainer>
           )}
-        </div>
-      </div>
+        </Painel>
+      </Secao>
 
       {/* ── DRE Gerencial (até Resultado Líquido) ── */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              DRE Gerencial
-              <KpiInfo titulo="DRE Gerencial" info={KPI_INFO.dre} />
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Da receita bruta ao resultado líquido — impostos, custo das mercadorias e despesas classificadas. Visão gerencial por competência.
-            </p>
-          </div>
-        </div>
-
-        {/* Resultado líquido por mês (evolução) */}
-        <div className="bg-card border border-border/60 rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-1">Resultado Líquido por mês</h3>
-          <p className="text-xs text-muted-foreground mb-4">Clique numa barra para ver a DRE completa daquele mês.</p>
+      <Secao
+        titulo="DRE Gerencial"
+        descricao="Da receita bruta ao resultado líquido — impostos, custo das mercadorias e despesas classificadas, por competência."
+        acao={<KpiInfo titulo="DRE Gerencial" info={KPI_INFO.dre} />}
+      >
+        <Painel titulo="Resultado Líquido por mês" descricao="Clique numa barra para abrir a DRE completa daquele mês.">
           {dre.isLoading ? (
             <Skeleton className="h-56 rounded-lg" />
           ) : dreComDados.length === 0 ? (
@@ -1054,38 +1326,52 @@ export default function Financeiro() {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </Painel>
 
-        {/* Cascata do mês selecionado */}
+        {/* Cascata + composição do mês selecionado, lado a lado */}
         {dreMes && dreMes.receita_bruta > 0 && (
-          <div className="bg-card border border-border/60 rounded-lg p-4">
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-              <h3 className="text-sm font-semibold">Cascata — {dreMes.rotulo}</h3>
-              <Select value={dreMes.chave} onValueChange={setDreMesSelecionado}>
-                <SelectTrigger className="w-[150px] h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[...dreComDados].reverse().map(d => (
-                    <SelectItem key={d.chave} value={d.chave}>{d.rotulo}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DreCascata d={dreMes} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Painel
+              titulo={`Cascata — ${dreMes.rotulo}`}
+              acao={
+                <Select value={dreMes.chave} onValueChange={setDreMesSelecionado}>
+                  <SelectTrigger className="w-[130px] h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[...dreComDados].reverse().map(d => (
+                      <SelectItem key={d.chave} value={d.chave}>{d.rotulo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              }
+            >
+              <DreWaterfall d={dreMes} />
+              <div className="mt-4 pt-4 border-t border-border/40">
+                <DreCascata d={dreMes} />
+              </div>
+            </Painel>
+
+            {dreMes.despesas > 0 && (
+              <Painel
+                titulo={`Composição das despesas — ${dreMes.rotulo}`}
+                info={KPI_INFO.composicaoDespesas}
+                descricao="Onde o dinheiro é gasto, por categoria."
+              >
+                <DespesasDonut d={dreMes} />
+              </Painel>
+            )}
           </div>
         )}
-      </div>
+      </Secao>
 
       {/* ── Fluxo de caixa projetado ── */}
-      <div className="bg-card border border-border/60 rounded-lg p-4">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <h3 className="text-sm font-semibold">Fluxo de caixa projetado (próximas {semanasFluxo} semanas)</h3>
-          <KpiInfo titulo="Fluxo de caixa projetado" info={KPI_INFO.graficoFluxo} />
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          Títulos em aberto por semana de vencimento: entradas (a receber) × saídas (a pagar). Linha = saldo da semana.
-        </p>
+      <Secao titulo="Caixa" descricao="Projeção das próximas semanas com base nos títulos em aberto.">
+        <Painel
+          titulo={`Fluxo de caixa projetado — próximas ${semanasFluxo} semanas`}
+          info={KPI_INFO.graficoFluxo}
+          descricao="Entradas (a receber) × saídas (a pagar) por semana de vencimento. A linha é o saldo acumulado — quando cruza o zero, é a semana em que o caixa aperta."
+        >
         {fluxoSemanal.isLoading ? (
           <Skeleton className="h-64 rounded-lg" />
         ) : (fluxoSemanal.data ?? []).length === 0 ? (
@@ -1102,81 +1388,89 @@ export default function Financeiro() {
               <Bar name="Entradas" dataKey="entradas" fill="hsl(var(--fin-in))" radius={[4, 4, 0, 0]} maxBarSize={26} />
               <Bar name="Saídas" dataKey="saidas" fill="hsl(var(--fin-out))" radius={[4, 4, 0, 0]} maxBarSize={26} />
               <Line
-                name="Saldo"
-                dataKey="saldo"
+                name="Saldo acumulado"
+                dataKey="acumulado"
                 stroke="hsl(var(--foreground))"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 dot={{ r: 3, fill: 'hsl(var(--foreground))' }}
                 type="monotone"
               />
             </ComposedChart>
           </ResponsiveContainer>
         )}
-      </div>
+        </Painel>
+      </Secao>
 
-      {/* ── KPIs ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <StatCard
-          icon={TrendingDown}
-          label="Contas a Pagar (aberto)"
-          value={formatCurrency(liquidez.data?.total_a_pagar_aberto ?? 0)}
-          color="negative"
-          info={KPI_INFO.contasPagar}
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="Contas a Receber (aberto)"
-          value={formatCurrency(liquidez.data?.total_a_receber_aberto ?? 0)}
-          color="positive"
-          info={KPI_INFO.contasReceber}
-        />
-        <StatCard
-          icon={Landmark}
-          label="Saldo Projetado"
-          value={formatCurrency(liquidez.data?.saldo_projetado ?? 0)}
-          sub="a receber − a pagar (em aberto)"
-          color={(liquidez.data?.saldo_projetado ?? 0) >= 0 ? 'positive' : 'negative'}
-          info={KPI_INFO.saldoProjetado}
-        />
-        <StatCard
-          icon={AlertTriangle}
-          label="Inadimplência"
-          value={formatPercent(inadimplencia.data?.percentual ?? 0)}
-          sub={`${formatCurrency(inadimplencia.data?.valor_vencido ?? 0)} vencidos`}
-          color={(inadimplencia.data?.percentual ?? 0) > 0.1 ? 'negative' : 'default'}
-          info={KPI_INFO.inadimplencia}
-        />
-        <StatCard
-          icon={Clock}
-          label="PMR (Prazo Médio Recebimento)"
-          value={`${(prazos.data?.pmr_dias ?? 0).toFixed(0)} dias`}
-          info={KPI_INFO.pmr}
-        />
-        <StatCard
-          icon={Clock}
-          label="PMP (Prazo Médio Pagamento)"
-          value={`${(prazos.data?.pmp_dias ?? 0).toFixed(0)} dias`}
-          info={KPI_INFO.pmp}
-        />
-      </div>
+      {/* ── Cobrança: aging + rankings ── */}
+      <Secao
+        titulo="Cobrança e fornecedores"
+        descricao="Qualidade da carteira a receber e onde o caixa está comprometido."
+      >
+        <Painel
+          titulo="Aging de recebíveis (em aberto)"
+          info={KPI_INFO.graficoAging}
+          descricao="Valor em aberto por faixa de atraso — a cor indica a severidade (quanto mais à direita, menor a chance de recuperar)."
+        >
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={aging.data ?? []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="faixa" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+              <YAxis tickFormatter={compactBRL} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={72} />
+              <Tooltip content={<AgingTooltip />} cursor={{ fill: 'hsl(var(--muted-foreground) / 0.08)' }} />
+              <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={80}>
+                {(aging.data ?? []).map(f => (
+                  <Cell key={f.faixa} fill={COR_AGING[f.faixa] ?? 'hsl(var(--muted-foreground))'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          {(aging.data ?? []).length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-8">
+              Nenhum título em aberto — sincronize com o Senior XT.
+            </p>
+          )}
+        </Painel>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Painel
+            titulo="Top 10 devedores (vencidos)"
+            info={KPI_INFO.topDevedores}
+            descricao="Clientes com maior valor a receber vencido — a lista de cobrança."
+          >
+            {topDevedores.isLoading ? (
+              <Skeleton className="h-64 rounded-lg" />
+            ) : (topDevedores.data ?? []).length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">Nenhum recebível vencido no filtro atual.</p>
+            ) : (
+              <RankingChart data={topDevedores.data ?? []} cor="hsl(var(--fin-out))" />
+            )}
+          </Painel>
+
+          <Painel
+            titulo="Top 10 fornecedores a pagar"
+            info={KPI_INFO.topFornecedores}
+            descricao="Onde o caixa está comprometido — use para priorizar negociação."
+          >
+            {topFornecedores.isLoading ? (
+              <Skeleton className="h-64 rounded-lg" />
+            ) : (topFornecedores.data ?? []).length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">Nenhum título a pagar em aberto no filtro atual.</p>
+            ) : (
+              <RankingChart data={topFornecedores.data ?? []} cor="hsl(217 91% 60%)" />
+            )}
+          </Painel>
+        </div>
+      </Secao>
 
       {/* ── Comparativo entre empresas ── */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold">Comparativo entre empresas</h2>
-            <p className="text-xs text-muted-foreground">
-              As 3 empresas lado a lado — sempre todas, independente do filtro acima.
-              {(comparativo.data?.[0]?.mes_ref) ? ` Valores de mês referentes a ${comparativo.data[0].mes_ref}.` : ''}
-            </p>
-          </div>
-          <KpiInfo titulo="Comparativo entre empresas" info={KPI_INFO.comparativo} />
-        </div>
-
-        {/* Posição financeira: a receber × a pagar por empresa */}
-        <div className="bg-card border border-border/60 rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-1">Posição em aberto por empresa</h3>
-          <p className="text-xs text-muted-foreground mb-4">A receber (entra) × a pagar (sai) em aberto.</p>
+      <Secao
+        titulo="Comparativo entre empresas"
+        descricao={`As 3 empresas lado a lado — sempre todas, independente do filtro de empresa.${
+          comparativo.data?.[0]?.mes_ref ? ` Valores de mês referentes a ${comparativo.data[0].mes_ref}.` : ''
+        }`}
+        acao={<KpiInfo titulo="Comparativo entre empresas" info={KPI_INFO.comparativo} />}
+      >
+        <Painel titulo="Posição em aberto por empresa" descricao="A receber (entra) × a pagar (sai) em aberto.">
           {comparativo.isLoading ? (
             <Skeleton className="h-56 rounded-lg" />
           ) : (
@@ -1192,10 +1486,61 @@ export default function Financeiro() {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </Painel>
+
+        {/* Eficiência normalizada (%) — compara independente do porte */}
+        <Painel
+          titulo="Eficiência comparada (%)"
+          info={KPI_INFO.comparativoNormalizado}
+          descricao="Indicadores em percentual, não em reais — assim o porte da empresa não distorce a comparação."
+        >
+          {comparativo.isLoading ? (
+            <Skeleton className="h-56 rounded-lg" />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={dadosNormalizados} barGap={3}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="indicador" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <YAxis tickFormatter={v => `${v}%`} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={48} />
+                <Tooltip
+                  cursor={{ fill: 'hsl(var(--muted-foreground) / 0.08)' }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="bg-card border border-border rounded-lg p-3 text-xs shadow-xl space-y-1">
+                        <p className="font-semibold text-foreground">{label}</p>
+                        {payload.map(p => (
+                          <p key={p.name} className="flex items-center gap-2 text-foreground">
+                            <span className="h-2 w-2 rounded-sm" style={{ background: p.color }} />
+                            {p.name}: <span className="font-mono font-semibold">{Number(p.value).toFixed(1)}%</span>
+                          </p>
+                        ))}
+                      </div>
+                    );
+                  }}
+                />
+                <Legend formatter={legendaTexto} />
+                <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                {(comparativo.data ?? []).map((c, i) => (
+                  <Bar
+                    key={c.empresa_codigo}
+                    name={c.empresa_nome}
+                    dataKey={c.empresa_codigo}
+                    fill={COR_EMPRESA[i % COR_EMPRESA.length]}
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={34}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Margem: maior é melhor. Despesa/Receita e Inadimplência: menor é melhor.
+          </p>
+        </Painel>
 
         {/* Tabela lado a lado de todos os indicadores */}
-        <div className="bg-card border border-border/60 rounded-lg p-4 overflow-x-auto">
+        <Painel titulo="Todos os indicadores" className="overflow-x-auto">
           {comparativo.isLoading ? (
             <Skeleton className="h-64 rounded-lg" />
           ) : (
@@ -1235,64 +1580,8 @@ export default function Financeiro() {
           <p className="text-[11px] text-muted-foreground mt-3">
             PMR em vermelho = a empresa recebe mais devagar do que paga (financia o cliente). Inadimplência em vermelho = acima de 10%.
           </p>
-        </div>
-      </div>
-
-      {/* ── Aging de recebíveis ── */}
-      <div className="bg-card border border-border/60 rounded-lg p-4">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <h3 className="text-sm font-semibold">Aging de Recebíveis (em aberto)</h3>
-          <KpiInfo titulo="Aging de Recebíveis" info={KPI_INFO.graficoAging} />
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">Valor em aberto por faixa de atraso</p>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={aging.data ?? []}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="faixa" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-            <YAxis tickFormatter={v => formatCurrency(v)} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={90} />
-            <Tooltip content={<AgingTooltip />} />
-            <Bar dataKey="valor" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-        {(aging.data ?? []).length === 0 && (
-          <p className="text-center text-sm text-muted-foreground py-8">
-            Nenhum título em aberto no período — sincronização com o Senior XT ainda não configurada ou sem dados.
-          </p>
-        )}
-      </div>
-
-      {/* ── Rankings acionáveis ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-card border border-border/60 rounded-lg p-4">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <h3 className="text-sm font-semibold">Top 10 devedores (vencidos)</h3>
-            <KpiInfo titulo="Top 10 devedores" info={KPI_INFO.topDevedores} />
-          </div>
-          <p className="text-xs text-muted-foreground mb-4">Clientes com maior valor a receber vencido — a lista de cobrança.</p>
-          {topDevedores.isLoading ? (
-            <Skeleton className="h-64 rounded-lg" />
-          ) : (topDevedores.data ?? []).length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground py-8">Nenhum recebível vencido no filtro atual.</p>
-          ) : (
-            <RankingChart data={topDevedores.data ?? []} cor="hsl(var(--destructive))" />
-          )}
-        </div>
-
-        <div className="bg-card border border-border/60 rounded-lg p-4">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <h3 className="text-sm font-semibold">Top 10 fornecedores a pagar</h3>
-            <KpiInfo titulo="Top 10 fornecedores a pagar" info={KPI_INFO.topFornecedores} />
-          </div>
-          <p className="text-xs text-muted-foreground mb-4">Fornecedores com maior valor a pagar em aberto — onde o caixa está comprometido.</p>
-          {topFornecedores.isLoading ? (
-            <Skeleton className="h-64 rounded-lg" />
-          ) : (topFornecedores.data ?? []).length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground py-8">Nenhum título a pagar em aberto no filtro atual.</p>
-          ) : (
-            <RankingChart data={topFornecedores.data ?? []} cor="hsl(var(--chart-4))" />
-          )}
-        </div>
-      </div>
+        </Painel>
+      </Secao>
     </div>
   );
 }
