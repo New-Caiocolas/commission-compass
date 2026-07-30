@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { formatCurrency, formatPercent } from '@/utils/formatters';
+import { formatCurrency, formatPercent, formatDate } from '@/utils/formatters';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { Landmark, TrendingUp, TrendingDown, Clock, AlertTriangle, RefreshCw, Scale, Info, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { MESES } from '@/utils/formatters';
 
 interface Empresa { id: string; codigo: string; nome: string }
@@ -387,10 +388,20 @@ const RankingTooltip = ({ active, payload }: { active?: boolean; payload?: { pay
 };
 
 /** Ranking horizontal (Top N por valor). Uma série só — cor única. */
-function RankingChart({ data, cor }: { data: RankingItem[]; cor: string }) {
+function RankingChart({ data, cor, onSelecionar }: {
+  data: RankingItem[]; cor: string; onSelecionar?: (nome: string) => void;
+}) {
   return (
     <ResponsiveContainer width="100%" height={Math.max(180, data.length * 30 + 20)}>
-      <BarChart data={data} layout="vertical" margin={{ left: 4, right: 12 }}>
+      <BarChart
+        data={data}
+        layout="vertical"
+        margin={{ left: 4, right: 12 }}
+        onClick={(e) => {
+          const p = e?.activePayload?.[0]?.payload as RankingItem | undefined;
+          if (p && onSelecionar) onSelecionar(p.nome);
+        }}
+      >
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
         <XAxis type="number" tickFormatter={compactBRL} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
         <YAxis
@@ -402,7 +413,7 @@ function RankingChart({ data, cor }: { data: RankingItem[]; cor: string }) {
           width={150}
         />
         <Tooltip content={<RankingTooltip />} cursor={{ fill: 'hsl(var(--muted-foreground) / 0.08)' }} />
-        <Bar dataKey="valor" fill={cor} radius={[0, 4, 4, 0]} maxBarSize={22} />
+        <Bar dataKey="valor" fill={cor} radius={[0, 4, 4, 0]} maxBarSize={22} className={onSelecionar ? 'cursor-pointer' : ''} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -805,6 +816,118 @@ function DreCascata({ d }: { d: DreMes }) {
   );
 }
 
+// ── Drill-down: títulos que compõem um número do dashboard ───────────────────
+
+interface DetalheFiltro {
+  titulo: string;
+  descricao?: string;
+  tipo: 'pagar' | 'receber';
+  empresa?: string | null;
+  status?: string | null;
+  vencidos?: boolean;
+  faixa?: string | null;
+  parceiro?: string | null;
+}
+
+interface TituloDetalhe {
+  empresa: string; titulo: string; parceiro: string | null; valor: number;
+  data_emissao: string | null; data_vencimento: string | null; data_pagamento: string | null;
+  status: string; dias_atraso: number;
+}
+
+function useTitulosDetalhe(f: DetalheFiltro | null) {
+  return useQuery({
+    queryKey: ['financeiro-detalhe', f],
+    enabled: !!f,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)('get_financeiro_titulos', {
+        p_tipo: f!.tipo,
+        p_empresa: f!.empresa ?? null,
+        p_status: f!.status ?? null,
+        p_vencidos: f!.vencidos ?? false,
+        p_faixa: f!.faixa ?? null,
+        p_parceiro: f!.parceiro ?? null,
+        p_limite: 200,
+      });
+      if (error) throw error;
+      return (data as TituloDetalhe[]).map(t => ({ ...t, valor: Number(t.valor) || 0 }));
+    },
+    staleTime: 1000 * 60,
+  });
+}
+
+/** Modal com a lista de títulos por trás de um indicador. */
+function DetalheTitulos({ filtro, onClose }: { filtro: DetalheFiltro | null; onClose: () => void }) {
+  const { data, isLoading } = useTitulosDetalhe(filtro);
+  const total = (data ?? []).reduce((s, t) => s + t.valor, 0);
+
+  return (
+    <Dialog open={!!filtro} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-base">{filtro?.titulo}</DialogTitle>
+          <DialogDescription className="text-xs">
+            {filtro?.descricao}
+            {data && !isLoading && (
+              <> · <strong className="text-foreground">{data.length}</strong> título{data.length === 1 ? '' : 's'} · total{' '}
+                <strong className="text-foreground font-mono">{formatCurrency(total)}</strong>
+                {data.length >= 200 && ' (mostrando os 200 maiores)'}
+              </>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="overflow-auto -mx-1 px-1">
+          {isLoading ? (
+            <Skeleton className="h-64 rounded-lg" />
+          ) : (data ?? []).length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-10">Nenhum título encontrado para este filtro.</p>
+          ) : (
+            <table className="w-full text-xs min-w-[680px]">
+              <thead className="sticky top-0 bg-card">
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="text-left font-medium py-2 pr-3">Título</th>
+                  <th className="text-left font-medium py-2 pr-3">Cliente / Fornecedor</th>
+                  <th className="text-left font-medium py-2 pr-3">Empresa</th>
+                  <th className="text-right font-medium py-2 px-3">Valor</th>
+                  <th className="text-center font-medium py-2 px-3">Emissão</th>
+                  <th className="text-center font-medium py-2 px-3">Vencimento</th>
+                  <th className="text-center font-medium py-2 pl-3">Situação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data ?? []).map((t, i) => (
+                  <tr key={`${t.titulo}-${i}`} className="border-b border-border/40 hover:bg-secondary/40">
+                    <td className="py-1.5 pr-3 font-mono">{t.titulo}</td>
+                    <td className="py-1.5 pr-3 max-w-[220px] truncate" title={t.parceiro ?? ''}>{t.parceiro ?? '—'}</td>
+                    <td className="py-1.5 pr-3 text-muted-foreground">{t.empresa}</td>
+                    <td className="py-1.5 px-3 text-right font-mono tabular-nums font-semibold">{formatCurrency(t.valor)}</td>
+                    <td className="py-1.5 px-3 text-center font-mono text-muted-foreground">{t.data_emissao ? formatDate(t.data_emissao) : '—'}</td>
+                    <td className="py-1.5 px-3 text-center font-mono">
+                      {t.data_vencimento ? formatDate(t.data_vencimento) : '—'}
+                      {t.status === 'AB' && t.dias_atraso > 0 && (
+                        <span className="ml-1.5 text-destructive">({t.dias_atraso}d)</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 pl-3 text-center">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        t.status === 'LQ' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-yellow-500/15 text-yellow-400'
+                      }`}>
+                        {t.status === 'LQ' ? 'pago' : 'aberto'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Blocos de layout: dão hierarquia e ritmo consistentes à página ───────────
 
 /** Divisória de capítulo: título discreto em versalete + régua fina. */
@@ -883,16 +1006,26 @@ function Sparkline({ dados, className = '' }: { dados: number[]; className?: str
   );
 }
 
-function StatCard({ icon: Icon, label, value, sub, color = 'default', info, spark }: {
+function StatCard({ icon: Icon, label, value, sub, color = 'default', info, spark, onDetalhe }: {
   icon: React.ElementType; label: string; value: string; sub?: string;
   color?: 'default' | 'positive' | 'negative' | 'warning';
   info?: KpiInfoTexto;
   /** Série dos últimos meses para a mini-tendência ao lado do número. */
   spark?: number[];
+  /** Quando definido, o cartão fica clicável e abre a lista de títulos. */
+  onDetalhe?: () => void;
 }) {
   const colors = { default: 'text-foreground', positive: 'text-emerald-400', negative: 'text-destructive', warning: 'text-yellow-400' };
   return (
-    <div className="bg-card border border-border/50 rounded-xl p-4 shadow-sm flex flex-col gap-2 transition-colors hover:border-border">
+    <div
+      onClick={onDetalhe}
+      role={onDetalhe ? 'button' : undefined}
+      tabIndex={onDetalhe ? 0 : undefined}
+      onKeyDown={onDetalhe ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDetalhe(); } } : undefined}
+      className={`bg-card border border-border/50 rounded-xl p-4 shadow-sm flex flex-col gap-2 transition-colors hover:border-border ${
+        onDetalhe ? 'cursor-pointer hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : ''
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-muted-foreground tracking-[0.1em] uppercase font-medium leading-tight">{label}</span>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -907,6 +1040,9 @@ function StatCard({ icon: Icon, label, value, sub, color = 'default', info, spar
         {spark && spark.length > 1 && <Sparkline dados={spark} className="shrink-0 mb-0.5" />}
       </div>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      {onDetalhe && (
+        <p className="text-[10px] text-primary/70 uppercase tracking-wider font-medium mt-auto pt-0.5">ver títulos →</p>
+      )}
     </div>
   );
 }
@@ -934,6 +1070,7 @@ export default function Financeiro() {
   });
   const [semanasFluxo, setSemanasFluxo] = useState(8);
   const [dreMesSelecionado, setDreMesSelecionado] = useState<string | null>(null);
+  const [detalhe, setDetalhe] = useState<DetalheFiltro | null>(null);
 
   const { liquidez, prazos, inadimplencia, aging } = useKpiFinanceiro(filtro);
   const resultadoMensal = useResultadoMensal(filtro);
@@ -1034,8 +1171,13 @@ export default function Financeiro() {
     </div>
   );
 
+  const escopoEmpresa = empresaSel ? empresaSel.nome : 'grupo';
+
   return (
     <div className="space-y-8 pb-4">
+
+      {/* Modal de drill-down (títulos por trás de cada número) */}
+      <DetalheTitulos filtro={detalhe} onClose={() => setDetalhe(null)} />
 
       {/* ── Header ── */}
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -1158,6 +1300,11 @@ export default function Financeiro() {
             value={formatCurrency(liquidez.data?.total_a_pagar_aberto ?? 0)}
             color="negative"
             info={KPI_INFO.contasPagar}
+            onDetalhe={() => setDetalhe({
+              titulo: 'Contas a pagar em aberto',
+              descricao: `Títulos não pagos — ${escopoEmpresa}`,
+              tipo: 'pagar', empresa: filtro, status: 'AB',
+            })}
           />
           <StatCard
             icon={TrendingUp}
@@ -1165,6 +1312,11 @@ export default function Financeiro() {
             value={formatCurrency(liquidez.data?.total_a_receber_aberto ?? 0)}
             color="positive"
             info={KPI_INFO.contasReceber}
+            onDetalhe={() => setDetalhe({
+              titulo: 'Contas a receber em aberto',
+              descricao: `Títulos ainda não recebidos — ${escopoEmpresa}`,
+              tipo: 'receber', empresa: filtro, status: 'AB',
+            })}
           />
           <StatCard
             icon={Landmark}
@@ -1181,6 +1333,11 @@ export default function Financeiro() {
             sub={`${compactBRL(inadimplencia.data?.valor_vencido ?? 0)} vencidos`}
             color={(inadimplencia.data?.percentual ?? 0) > 0.1 ? 'negative' : 'default'}
             info={KPI_INFO.inadimplencia}
+            onDetalhe={() => setDetalhe({
+              titulo: 'Recebíveis vencidos',
+              descricao: `Títulos a receber já vencidos e não pagos — ${escopoEmpresa}`,
+              tipo: 'receber', empresa: filtro, status: 'AB', vencidos: true,
+            })}
           />
           <StatCard
             icon={Clock}
@@ -1409,15 +1566,25 @@ export default function Financeiro() {
         <Painel
           titulo="Aging de recebíveis (em aberto)"
           info={KPI_INFO.graficoAging}
-          descricao="Valor em aberto por faixa de atraso — a cor indica a severidade (quanto mais à direita, menor a chance de recuperar)."
+          descricao="Valor em aberto por faixa de atraso — a cor indica a severidade. Clique numa barra para ver os títulos daquela faixa."
         >
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={aging.data ?? []}>
+            <BarChart
+              data={aging.data ?? []}
+              onClick={(e) => {
+                const p = e?.activePayload?.[0]?.payload as AgingFaixa | undefined;
+                if (p) setDetalhe({
+                  titulo: `Recebíveis — ${p.faixa}`,
+                  descricao: `Títulos a receber em aberto nesta faixa — ${escopoEmpresa}`,
+                  tipo: 'receber', empresa: filtro, status: 'AB', faixa: p.faixa,
+                });
+              }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="faixa" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
               <YAxis tickFormatter={compactBRL} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={72} />
               <Tooltip content={<AgingTooltip />} cursor={{ fill: 'hsl(var(--muted-foreground) / 0.08)' }} />
-              <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={80}>
+              <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={80} className="cursor-pointer">
                 {(aging.data ?? []).map(f => (
                   <Cell key={f.faixa} fill={COR_AGING[f.faixa] ?? 'hsl(var(--muted-foreground))'} />
                 ))}
@@ -1435,28 +1602,44 @@ export default function Financeiro() {
           <Painel
             titulo="Top 10 devedores (vencidos)"
             info={KPI_INFO.topDevedores}
-            descricao="Clientes com maior valor a receber vencido — a lista de cobrança."
+            descricao="Clientes com maior valor a receber vencido — a lista de cobrança. Clique num cliente para ver os títulos dele."
           >
             {topDevedores.isLoading ? (
               <Skeleton className="h-64 rounded-lg" />
             ) : (topDevedores.data ?? []).length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-8">Nenhum recebível vencido no filtro atual.</p>
             ) : (
-              <RankingChart data={topDevedores.data ?? []} cor="hsl(var(--fin-out))" />
+              <RankingChart
+                data={topDevedores.data ?? []}
+                cor="hsl(var(--fin-out))"
+                onSelecionar={(nome) => setDetalhe({
+                  titulo: nome,
+                  descricao: 'Títulos a receber vencidos deste cliente',
+                  tipo: 'receber', empresa: filtro, status: 'AB', vencidos: true, parceiro: nome,
+                })}
+              />
             )}
           </Painel>
 
           <Painel
             titulo="Top 10 fornecedores a pagar"
             info={KPI_INFO.topFornecedores}
-            descricao="Onde o caixa está comprometido — use para priorizar negociação."
+            descricao="Onde o caixa está comprometido — clique num fornecedor para ver os títulos dele."
           >
             {topFornecedores.isLoading ? (
               <Skeleton className="h-64 rounded-lg" />
             ) : (topFornecedores.data ?? []).length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-8">Nenhum título a pagar em aberto no filtro atual.</p>
             ) : (
-              <RankingChart data={topFornecedores.data ?? []} cor="hsl(217 91% 60%)" />
+              <RankingChart
+                data={topFornecedores.data ?? []}
+                cor="hsl(217 91% 60%)"
+                onSelecionar={(nome) => setDetalhe({
+                  titulo: nome,
+                  descricao: 'Títulos a pagar em aberto deste fornecedor',
+                  tipo: 'pagar', empresa: filtro, status: 'AB', parceiro: nome,
+                })}
+              />
             )}
           </Painel>
         </div>
