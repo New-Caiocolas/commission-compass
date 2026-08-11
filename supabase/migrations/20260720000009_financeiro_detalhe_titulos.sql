@@ -10,6 +10,7 @@ CREATE OR REPLACE FUNCTION public.get_financeiro_titulos(
   p_vencidos BOOLEAN DEFAULT FALSE,     -- só os já vencidos (em aberto)
   p_faixa TEXT DEFAULT NULL,            -- faixa de aging (mesmos rótulos do gráfico)
   p_parceiro TEXT DEFAULT NULL,         -- cliente/fornecedor exato
+  p_dias INT DEFAULT NULL,              -- horizonte: vence até N dias (NULL = sem recorte)
   p_limite INT DEFAULT 200
 )
 RETURNS TABLE(
@@ -45,6 +46,7 @@ AS $$
     WHERE (p_status IS NULL OR status = p_status)
       AND (NOT p_vencidos OR (data_vencimento < CURRENT_DATE AND status = 'AB'))
       AND (p_parceiro IS NULL OR parceiro = p_parceiro)
+      AND (p_dias IS NULL OR data_vencimento <= CURRENT_DATE + p_dias)
   )
   SELECT empresa, titulo, parceiro, valor, data_emissao, data_vencimento, data_pagamento, status,
          GREATEST(atraso, 0) AS dias_atraso

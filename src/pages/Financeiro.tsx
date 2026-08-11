@@ -50,13 +50,16 @@ function useEmpresas() {
   });
 }
 
-function useKpiFinanceiro(empresaCodigo: string | null) {
+function useKpiFinanceiro(empresaCodigo: string | null, diasHorizonte: number | null) {
   const queryKey = ['kpi-financeiro', empresaCodigo];
 
   const liquidez = useQuery({
-    queryKey: [...queryKey, 'liquidez'],
+    queryKey: [...queryKey, 'liquidez', diasHorizonte],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_kpi_financeiro_liquidez', { empresa_codigo: empresaCodigo });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)('get_kpi_financeiro_liquidez', {
+        empresa_codigo: empresaCodigo, dias: diasHorizonte,
+      });
       if (error) throw error;
       const r = (data as Liquidez[])[0];
       return {
@@ -440,16 +443,16 @@ const KPI_INFO: Record<string, KpiInfoTexto> = {
     decisao: 'A visão de longo prazo: o acumulado do ano diz se o grupo tem fôlego para investir/expandir ou se precisa frear. Use para metas anuais e para comparar anos entre si (filtro "Ano passado").',
   },
   contasPagar: {
-    oQueE: 'Total de compromissos assumidos e ainda não pagos (títulos em aberto no contas a pagar).',
-    decisao: 'Dimensionar o caixa necessário nas próximas semanas. Se está alto demais frente ao caixa disponível: renegociar prazos com fornecedores, priorizar pagamentos com juros/multa.',
+    oQueE: 'Compromissos não pagos que vencem dentro do horizonte escolhido (inclui os já vencidos). Abrange mercadoria, impostos, despesas e parcelas de financiamento.',
+    decisao: 'Dimensionar o caixa necessário para o período. Se supera o previsto de entrada: renegociar prazos com fornecedores e priorizar o que tem juros/multa.',
   },
   contasReceber: {
     oQueE: 'Total de vendas a prazo ainda não recebidas (títulos em aberto no contas a receber).',
     decisao: 'É capital do grupo parado na mão de clientes. Se cresce mais rápido que a receita, a política de crédito está frouxa — apertar análise de crédito e prazos concedidos.',
   },
   saldoProjetado: {
-    oQueE: 'A receber em aberto menos a pagar em aberto. Se tudo fosse recebido e pago hoje, este seria o efeito líquido no caixa.',
-    decisao: 'Negativo significa que os compromissos superam os recebíveis — decidir entre antecipar recebíveis, captar capital de giro ou renegociar vencimentos ANTES do aperto chegar.',
+    oQueE: 'O que entra menos o que sai dentro do horizonte escolhido (30/60/90 dias), contando também o que já venceu. Sem recorte de prazo o número perde sentido, porque entram parcelas de financiamento que vencem daqui a anos.',
+    decisao: 'Negativo na janela curta = falta caixa nesse período: antecipar recebíveis, renegociar vencimentos ou usar capital de giro. Compare janelas: se 30 dias está negativo mas 90 está positivo, é descasamento de prazo, não insolvência.',
   },
   inadimplencia: {
     oQueE: 'Percentual da carteira de recebíveis que está vencida e não paga (valor vencido ÷ total em aberto).',
@@ -827,6 +830,8 @@ interface DetalheFiltro {
   vencidos?: boolean;
   faixa?: string | null;
   parceiro?: string | null;
+  /** Horizonte de vencimento, para o detalhe bater com o KPI clicado. */
+  dias?: number | null;
 }
 
 interface TituloDetalhe {
@@ -848,6 +853,7 @@ function useTitulosDetalhe(f: DetalheFiltro | null) {
         p_vencidos: f!.vencidos ?? false,
         p_faixa: f!.faixa ?? null,
         p_parceiro: f!.parceiro ?? null,
+        p_dias: f!.dias ?? null,
         p_limite: 200,
       });
       if (error) throw error;
@@ -1069,10 +1075,12 @@ export default function Financeiro() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const [semanasFluxo, setSemanasFluxo] = useState(8);
+  /** Horizonte de vencimento da posição financeira (null = todo o saldo em aberto). */
+  const [diasHorizonte, setDiasHorizonte] = useState<number | null>(30);
   const [dreMesSelecionado, setDreMesSelecionado] = useState<string | null>(null);
   const [detalhe, setDetalhe] = useState<DetalheFiltro | null>(null);
 
-  const { liquidez, prazos, inadimplencia, aging } = useKpiFinanceiro(filtro);
+  const { liquidez, prazos, inadimplencia, aging } = useKpiFinanceiro(filtro, diasHorizonte);
   const resultadoMensal = useResultadoMensal(filtro);
   const dre = useDre(filtro);
   const fluxoSemanal = useFluxoSemanal(filtro, semanasFluxo);
@@ -1291,38 +1299,59 @@ export default function Financeiro() {
       {/* ── Posição financeira (o pulso) ── */}
       <Secao
         titulo="Posição financeira"
-        descricao="O que está em aberto hoje e a velocidade do ciclo de caixa."
+        descricao={
+          diasHorizonte
+            ? `Títulos que vencem até ${diasHorizonte} dias (incluindo os já vencidos) — o que realmente pesa no caixa desta janela.`
+            : 'Todo o saldo em aberto, sem recorte de prazo — inclui parcelas de financiamento de longo prazo.'
+        }
+        acao={
+          <Select
+            value={diasHorizonte === null ? 'tudo' : String(diasHorizonte)}
+            onValueChange={v => setDiasHorizonte(v === 'tudo' ? null : Number(v))}
+          >
+            <SelectTrigger className="w-[170px] h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="30">Vence em 30 dias</SelectItem>
+              <SelectItem value="60">Vence em 60 dias</SelectItem>
+              <SelectItem value="90">Vence em 90 dias</SelectItem>
+              <SelectItem value="180">Vence em 180 dias</SelectItem>
+              <SelectItem value="tudo">Todo o saldo em aberto</SelectItem>
+            </SelectContent>
+          </Select>
+        }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
           <StatCard
             icon={TrendingDown}
-            label="A pagar (aberto)"
+            label={diasHorizonte ? `A pagar (${diasHorizonte}d)` : 'A pagar (total)'}
             value={formatCurrency(liquidez.data?.total_a_pagar_aberto ?? 0)}
             color="negative"
             info={KPI_INFO.contasPagar}
             onDetalhe={() => setDetalhe({
-              titulo: 'Contas a pagar em aberto',
+              titulo: diasHorizonte ? `A pagar — vence em até ${diasHorizonte} dias` : 'Contas a pagar em aberto',
               descricao: `Títulos não pagos — ${escopoEmpresa}`,
-              tipo: 'pagar', empresa: filtro, status: 'AB',
+              tipo: 'pagar', empresa: filtro, status: 'AB', dias: diasHorizonte,
             })}
           />
           <StatCard
             icon={TrendingUp}
-            label="A receber (aberto)"
+            label={diasHorizonte ? `A receber (${diasHorizonte}d)` : 'A receber (total)'}
             value={formatCurrency(liquidez.data?.total_a_receber_aberto ?? 0)}
             color="positive"
             info={KPI_INFO.contasReceber}
             onDetalhe={() => setDetalhe({
-              titulo: 'Contas a receber em aberto',
+              titulo: diasHorizonte ? `A receber — vence em até ${diasHorizonte} dias` : 'Contas a receber em aberto',
               descricao: `Títulos ainda não recebidos — ${escopoEmpresa}`,
-              tipo: 'receber', empresa: filtro, status: 'AB',
+              tipo: 'receber', empresa: filtro, status: 'AB', dias: diasHorizonte,
             })}
           />
           <StatCard
             icon={Landmark}
-            label="Saldo projetado"
+            label={diasHorizonte ? `Saldo em ${diasHorizonte} dias` : 'Saldo total em aberto'}
             value={formatCurrency(liquidez.data?.saldo_projetado ?? 0)}
-            sub="a receber − a pagar"
+            sub={diasHorizonte ? `o que entra − o que sai até ${diasHorizonte}d` : 'a receber − a pagar (todo o saldo)'}
             color={(liquidez.data?.saldo_projetado ?? 0) >= 0 ? 'positive' : 'negative'}
             info={KPI_INFO.saldoProjetado}
           />
