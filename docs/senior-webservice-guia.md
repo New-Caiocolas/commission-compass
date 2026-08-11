@@ -188,8 +188,12 @@ Estas são as que geram **número errado sem dar erro nenhum**:
    distribuição de lucros. Somar tudo como "despesa" **inverte o resultado**
    (num teste real: prejuízo falso de −10% que na verdade era lucro de +25%).
    Classifique cada `ctafin` antes de usar (ver tabela `financeiro_conta_dre`).
-2. **Não some ICMS/PIS/COFINS duas vezes.** Eles saem na receita líquida; se
-   também entrarem como despesa (via `ctafin`), contam em dobro.
+2. **Imposto da nota ≠ imposto pago.** ⚠️ *Este erro inverteu o resultado de um
+   trimestre inteiro.* O `VlrIcm+VlrPis+VlrCff` destacado na nota de venda é
+   **cerca de metade** do que a empresa realmente paga, porque ICMS-ST e
+   antecipações não aparecem destacados. Exemplo real (Ello, 2º tri/2026):
+   nota = R$ 485 mil, pago = R$ 998 mil. **Use sempre os títulos pagos**
+   (`ctafin` de ICMS/PIS/COFINS/antecipações), nunca o valor da nota.
 3. **CMV pelo estoque subestima.** O `E210MVP.VlrMov` é o custo contábil do
    estoque, sem ST/frete — para commodity, dá margem irreal (~58%). O custo real
    está nas **compras** (títulos a pagar com `ctafin` vazio).
@@ -198,8 +202,13 @@ Estas são as que geram **número errado sem dar erro nenhum**:
    consolidado (89% da Imperatriz eram quase todos intercompany).
 5. **Mês isolado engana.** Contas anuais e provisões fazem um mês parecer
    catastrófico. Olhe o acumulado.
-6. **Sempre reconcilie com o banco.** Rode a mesma conta em SQL direto no CBDS e
-   compare com o que o sistema mostra. Foi assim que os erros acima apareceram.
+6. **Parcela de financiamento mistura juros e principal.** Só os juros são
+   despesa; o principal amortiza dívida. Não dá para separar automaticamente —
+   a controladoria informa a fração (campo `percentual` em `financeiro_conta_dre`).
+7. **Sempre reconcilie com o banco E com a controladoria.** Bater com o CBDS só
+   prova que o cálculo reflete o dado; não prova que a *metodologia* está certa.
+   O erro dos impostos passou pela reconciliação técnica e só apareceu quando a
+   controladoria comparou com a apuração real. **Peça a validação humana.**
 
 ---
 

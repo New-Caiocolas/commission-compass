@@ -496,7 +496,7 @@ const KPI_INFO: Record<string, KpiInfoTexto> = {
     decisao: 'Em valores absolutos a maior empresa sempre parece melhor. Em percentual dá para ver quem realmente opera melhor — e replicar a prática da mais eficiente nas outras.',
   },
   dre: {
-    oQueE: 'DRE gerencial (regime de competência): Receita Bruta − impostos − deduções = Receita Líquida − CMV (compra de mercadoria) = Lucro Bruto − despesas operacionais/financeiras/tributárias = Resultado Líquido. Custo e despesas vêm da classificação financeira dos títulos (plano financeiro do Senior).',
+    oQueE: 'DRE gerencial (competência, por data de emissão): Receita Bruta − impostos efetivamente pagos − deduções = Receita Líquida − CMV (compra de mercadoria) = Lucro Bruto − despesas de pessoal/operacionais/financeiras/impostos sobre o lucro = Resultado Líquido. Os impostos vêm dos títulos pagos (incluem ICMS-ST e antecipações), não do que está destacado na nota.',
     decisao: 'O retrato completo do resultado: margem bruta (eficiência de compra/venda) e margem líquida (o que sobra no fim). Margem líquida negativa por meses seguidos = o negócio está queimando capital. É o indicador definitivo de "a empresa dá lucro?".',
   },
 };
@@ -763,7 +763,7 @@ function DespesasDonut({ d }: { d: DreMes }) {
 function DreCascata({ d }: { d: DreMes }) {
   const linhas: { rot: string; val: number; tipo: 'base' | 'menos' | 'subtotal' | 'resultado' }[] = [
     { rot: 'Receita Bruta', val: d.receita_bruta, tipo: 'base' },
-    { rot: '(−) Impostos s/ venda', val: -d.impostos, tipo: 'menos' },
+    { rot: '(−) Impostos s/ venda (pagos)', val: -d.impostos, tipo: 'menos' },
     { rot: '(−) Deduções e devoluções', val: -d.deducoes, tipo: 'menos' },
     { rot: '(=) Receita Líquida', val: d.receita_liquida, tipo: 'subtotal' },
     { rot: '(−) CMV (custo das mercadorias)', val: -d.cmv, tipo: 'menos' },
